@@ -67,3 +67,6 @@ code
 **/.requeue_links/**
 **/my_secrets.yaml
 downloaded_checkpoints/*
+
+# Committed explanatory figures of the kinetic study
+!experiments/continuous_velocity/kinetic/figures/*.png

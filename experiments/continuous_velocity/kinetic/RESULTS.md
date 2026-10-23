@@ -52,6 +52,20 @@ Core suite, held-out initial speeds .37/.63/1.23, horizon 40.
 - Validation-only selection of the combined package chose `spectral_newton`
   (mean best-validation 0.00081 vs 0.00246 for base). On test it is not better
   than `newton` alone.
+- Spectral transport is kept as an option. Both transports handle fractional
+  (sub-pixel) displacements; the parent samples the memory bilinearly at the
+  real-valued offset `v τ`, so sub-pixel motion was never the missing
+  capability. What the Fourier shift removes is the interpolation blur of each
+  transport, and that advantage is real but small: with the true velocity
+  supplied to the same checkpoint, spectral transport gives 0.00012 vs 0.00015
+  (bilinear), a difference the trained decoder absorbs. Its payoff appears in
+  combination with the sharper estimate from Newton refinement under
+  acceleration (`order2_spectral_newton`, below), where it also removes the
+  order-2 cost on constant velocity.
+- The roles split as follows: Newton refinement determines how precisely the
+  motion is estimated; spectral transport determines how sharply an estimated
+  motion is rendered; the two are independent switches and were tested both
+  separately and together.
 
 ## Item 2: second-order (acceleration) motion
 
@@ -109,10 +123,26 @@ study's handoff anticipated.
 
 ## Figures
 
-`outputs/continuous_velocity/kinetic_v1/figures/accel_mse_success.{png,pdf}`
+Committed explanatory figures in `figures/` (regenerate with
+`explain_figures.py` from the completed campaign outputs):
+
+- `figures/transport_after_training.png`: why spectral transport alone gives
+  nothing after training. Per-seed held-out bilinear MSE for the six Group A
+  variants with true-velocity oracle markers, validation loss during training
+  (base, spectral and Newton curves), and MSE at each test speed.
+- `figures/nearest_estimation_problem.png`: why nearest rendering is an
+  estimation problem. Nearest MSE per seed against the true-velocity oracle
+  (25x lower with the same weights), the models' velocity error on bilinear vs
+  nearest frames (0.006 vs 0.07 px/frame), success by speed (100% at on-grid
+  speeds, 31–57% at off-grid speeds), and example frames.
+- `figures/localization_success_metric.png`: what "localization success"
+  measures (template detector position vs true position within 2 px on
+  visible frames), with a per-frame error timeline for both renderers.
+
+Campaign figures `outputs/continuous_velocity/kinetic_v1/figures/accel_mse_success.{png,pdf}`
 (MSE and success versus true acceleration, Group B families) and
-`time_mse.{png,pdf}` (MSE versus horizon, Group A families). Figures are
-git-ignored; regenerate with `report.py`.
+`time_mse.{png,pdf}` (MSE versus horizon, Group A families) are git-ignored;
+regenerate with `report.py`.
 
 ## What was not done
 
