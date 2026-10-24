@@ -51,7 +51,7 @@ algorithm.backbone.no_self_motion_equivariance=false`; the metadata cache
 
 `dynamic_po`: 50x50 torus, 32x32 window (top-left = camera centre - 16), 5
 MNIST-train digits composited additively with clip, integer velocities in
-{-1,0,1}^2, camera actions uniform integers in [-10,10]^2, 180k training /
+{-1,0,1}^2, camera actions target uniform unseen pixels with wrapped steps clipped to [-10,10]^2 until full window coverage, then iid uniform integers (actions 0 and 50 are zero), 180k training /
 8000 validation episodes of 70 frames (and 200-frame validation), mp4 (x264
 crf 10, 8 fps) + .pt metadata with labels, positions and velocities. Metrics
 are torchmetrics MSE/PSNR/SSIM pooled over non-context frames.
