@@ -10,10 +10,18 @@ parent study (`experiments/continuous_velocity/`).
 Released checkpoint `dynamic_po_flowm.pt`, official pipeline, all 8000
 `dynamic_validation` clips, 50 context + 20 predicted frames:
 
-| | MSE | PSNR | SSIM |
-|---|---:|---:|---:|
-| Paper (Table 1) | 0.0005 | 32.99 | 0.9900 |
-| Reproduction | 0.000502 | 32.99 | 0.9900 |
+| Horizon | | MSE | PSNR | SSIM |
+|---|---|---:|---:|---:|
+| 20 predicted frames (`dynamic_validation`) | Paper (Table 1) | 0.0005 | 32.99 | 0.9900 |
+| | Reproduction, 8000 clips | 0.000502 | 32.99 | 0.9900 |
+| 150 predicted frames (`dynamic_validation_200`) | Paper (Table 1) | 0.0018 | 27.56 | 0.9813 |
+| | Reproduction, 8000 clips, `v_range=2`, self-motion equivariance on | 0.001753 | 27.56 | 0.9813 |
+| | Same checkpoint under the released `dynamic_po_200wf` config as is (`v_range 0`, no self-motion equivariance), 1000 clips | 0.1648 | 7.83 | 0.356 |
+
+The last row documents the config oversight described below: the released
+200-frame shortcode loads the velocity-channel checkpoint into a model without
+velocity channels or self-motion equivariance, which destroys its predictions.
+The paper's numbers are reproduced once the two backbone flags are overridden.
 
 Command (offline wandb; `configurations/secrets/my_secrets.yaml` holds a dummy
 key and is git-ignored):
