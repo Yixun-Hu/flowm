@@ -16,6 +16,12 @@ import math
 
 import torch
 
+# Denominator floor of the normalized similarity. Below it the clamped quotient's
+# derivatives are undefined, so any refinement whose start or end point sits at
+# the floor is rejected (an audit of this code found the earlier ``d > 0`` guard
+# let such steps through).
+DENOMINATOR_FLOOR = 1e-5
+
 
 def _axis_phase(n, delta, deriv=0, half=False):
     """Phase basis e^{-2*pi*i*k*delta} per frequency of one axis, with Nyquist as cos.
@@ -109,7 +115,8 @@ def refine_peak(numerator_spectrum, denominator_spectrum, start, steps=3,
     Newton residual, the spectra and ``start``. The refinement is accepted only
     if the final Hessian is negative definite with a relative margin, the point
     moved by at most ``radius`` pixels, the denominator kept at least half of its
-    initial value, and the similarity improved without exceeding 1 (+1e-3).
+    initial value and stayed above ``DENOMINATOR_FLOOR`` at both the start and
+    the end, and the similarity improved without exceeding 1 (+1e-3).
     Otherwise the start value is returned. Returns ``(refined, accepted)``.
     """
     w = 2*(numerator_spectrum.shape[-1]-1)
@@ -130,7 +137,7 @@ def refine_peak(numerator_spectrum, denominator_spectrum, start, steps=3,
             return torch.einsum('s...w,...w->s...', rows[m], phase_x[n]).real/(h*w)
         f, fx, fy = value(0, 0), value(0, 1), value(1, 0)
         fxx, fxy, fyy = value(0, 2), value(1, 1), value(2, 0)
-        n, d = f[0], f[1].clamp_min(1e-5)
+        n, d = f[0], f[1].clamp_min(DENOMINATOR_FLOOR)
         nx, ny, dx, dy = fx[0], fy[0], fx[1], fy[1]
         s = 2*n/d
         grad = torch.stack([2*(nx*d-n*dx)/d**2, 2*(ny*d-n*dy)/d**2], -1)
@@ -168,7 +175,7 @@ def refine_peak(numerator_spectrum, denominator_spectrum, start, steps=3,
     largest = trace/2+torch.sqrt((trace/2).square()-det).nan_to_num(0.)
     negative = negative & (largest < -eigenvalue_margin*trace.abs()/2)
     moved = (delta-start).norm(dim=-1) <= radius
-    positive = (d0.detach() > 0) & (d1.detach() > 0)
+    positive = (d0.detach() > DENOMINATOR_FLOOR) & (d1.detach() > DENOMINATOR_FLOOR)
     accepted = (negative & moved & positive & (d1.detach() >= .5*d0.detach())
                 & (s1.detach() <= 1+1e-3) & (s1.detach() >= s0.detach()))
     refined = torch.where(accepted[..., None], delta, start)

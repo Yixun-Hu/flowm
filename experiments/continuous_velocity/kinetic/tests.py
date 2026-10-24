@@ -29,6 +29,22 @@ def blob(cx, cy, s2=8.):
 
 
 class TransportTests(unittest.TestCase):
+    def test_refinement_is_rejected_when_the_denominator_is_at_the_floor(self):
+        # Audit reproduction: S = 2N/D is identically 0.5 (zero gradient), but
+        # with D below the clamp floor the clamped derivatives are inconsistent;
+        # such a case must not be accepted.
+        y, x = torch.meshgrid(torch.arange(50, dtype=torch.float64),
+                              torch.arange(50, dtype=torch.float64), indexing='ij')
+        d = 1e-6*(1+.2*torch.cos(2*torch.pi*x/50)+.2*torch.cos(2*torch.pi*y/50))
+        ns, ds = torch.fft.rfft2(d/4), torch.fft.rfft2(d)
+        start = torch.tensor([.2, -.3], dtype=torch.float64)
+        refined, accepted = refine_peak(ns, ds, start)
+        self.assertFalse(bool(accepted))
+        self.assertTrue(torch.equal(refined, start))
+        # Same shape of problem, denominator well above the floor: refinement still works.
+        refined, accepted = refine_peak(ns*1e6, ds*1e6, start)
+        self.assertTrue(torch.isfinite(refined).all())
+
     def test_integer_shift_equals_roll(self):
         torch.manual_seed(0)
         h = torch.randn(3, 4, 5, 10, 13)

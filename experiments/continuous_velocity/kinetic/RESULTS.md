@@ -144,6 +144,27 @@ Campaign figures `outputs/continuous_velocity/kinetic_v1/figures/accel_mse_succe
 `time_mse.{png,pdf}` (MSE versus horizon, Group A families) are git-ignored;
 regenerate with `report.py`.
 
+## Post-campaign audit (2026-10-24)
+
+An independent read-only audit of `transport.py` and `memory.py` by gpt-6-astra
+(Codex CLI) confirmed the shift direction and integer equivalence of
+`spectral_shift`, the alignment and rendering signs, the fusion division
+guards, and the quotient-rule gradient and Hessian of `refine_peak` (agreement
+with autograd within 5e-10). It found one defect: when the similarity
+denominator fell below the 1e-5 clamp floor, the clamped derivatives were
+inconsistent and the acceptance guard (`d > 0`) could still accept the step.
+Fixed by rejecting any refinement whose start or end denominator is at the
+floor, with the audit's reproduction added as a regression test. On real data
+the peak denominator is about 50, more than six orders of magnitude above the
+floor, so the campaign results (run from the source at commit 3fc3c4c) are
+unaffected; new evaluations of the kinetic_v1 checkpoints will, by design,
+record a different `transport.py` hash from their training manifests. The audit
+also noted that the symmetric-cosine Nyquist convention attenuates the Nyquist
+component by `cos(π d)` for fractional shifts, which can bias a refined
+displacement for signals with Nyquist-frequency content (demonstrated on a
+synthetic checkerboard term); this is inherent to fractional shifts on an
+even grid and is left as a documented limitation.
+
 ## What was not done
 
 - No matched-trained FloWM or KWM baseline on this data; KWM's adaptive velocity
