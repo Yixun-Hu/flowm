@@ -102,3 +102,13 @@ Paired t-test on seed means (df = seeds − 1) primary; exact sign-flip and hier
 4. H1 3-seed look → PR2 screening starts; seeds 3–4 of H1 run regardless.
 5. PR3 evaluation-time results on all checkpoints; trained zero-input runs.
 6. FloWM baselines, K-int, campaign script, RESULTS_v2, PRs per Section 5; 3D feasibility note; Stage 3 plan.
+
+## Amendment 2026-10-25 (after the PR2 implementation, its Opus review REVIEW_pr2_opus.md, and the corrected gate)
+
+**PR2 gate result: NO-GO for order-2 training.** With the variance units corrected (weight-scale invariant sandwich), a velocity-jump reset, the correction anchored on the fit intercept and κ = 9: null gate-open rate 0.40% (target < 2%, met), but detection of nonzero acceleration in five-digit K-accel scenes is 0–2% per |a| bin, and the displacement proxy (mean |Δp̂ − Δp| at τ = 20/50 from the final node state) is 0.3% worse than the best forgetting comparator (F = 0.9), against a required ≥ 10% improvement. In a clean single-digit scene the same estimator detects a = 4e-3 in 94–100% of 50 seeds with 0/50 false positives, so the estimator is correct; the per-step velocity measurement noise in five-digit scenes (σ_z ≈ 0.14 px/frame vs 0.012 in the clean scene, from association and mode switches) makes a 30-frame slope undetectable below |a| ≈ 1e-2. Full tables: fork `docs/GATE_order2.md`.
+
+**Consequences.**
+- PR2 is re-scoped to what passed: the accelerated environment (`--accel`, realised law and oracle ceiling via `scripts/accel_law.py`), the forgetting comparator (`--nu_forget`), and `--order 2` as an experimental opt-in flag with the negative gate documented. The 23-run H2 training campaign is cancelled (saves ≈ 3 weeks of GPU).
+- H2 survives only as an evaluation-time check (order 2 has no trainable parameters): on the order-1 lock checkpoints trained on K-accel, if and when those are trained, evaluate `--order 2` and `--nu_forget F` overrides with prediction updates off. No GPU is allocated to it now.
+- The real lever for acceleration is the measurement noise of the node update (association across digits, mode switches), not the motion order. A future order-2 attempt needs a better measurement first; the oracle ceiling (perfect instantaneous velocity 0.009/0.051 vs mid-observation 0.033/0.077 at MSE@20/@50) shows the headroom exists.
+- Budget reallocated: PR1 H1 seeds (8 runs), PR3 zero-input trained runs (3), FloWM baselines on K-real (3), K-int sanity (3), evaluations. ≈ 20 runs, ≈ 3–4 weeks.
