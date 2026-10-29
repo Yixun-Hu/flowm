@@ -43,3 +43,25 @@ four decimals) and a small difference under flowm input (lock @150 0.0888 on vs 
 
 Reference points (KWM RESULTS §4, Denzel's one-seed runs, selection set, best checkpoint): FloWM 0.067 / 0.145,
 adaptive 0.027 / 0.089, oracle nodes 0.006 / 0.043.
+
+## FloWM baseline, seed 0 (added 2026-10-28)
+
+KWM-sized FloWM (`--model flowm`, 32 channels, 19,008 parameters), same environment, schedule and seed as the two
+adaptive arms, same held-out protocol. Raw JSON: `kwm-wt-pr3/results/h1_flowm_s0/`.
+
+| Arm | Prediction input | MSE@20 | MSE@150 |
+|---|---|---:|---:|
+| FloWM | flowm (its native) | 0.0683 | 0.1584 |
+| FloWM | zero | 0.0811 | 0.1581 |
+
+Zero input hurts FloWM at 20 frames (it has no transport to carry the scene without feedback), unlike the kinetic arms.
+Paired against FloWM's native input over the 1000 held-out sequences:
+
+| Treatment | Δ MSE@20 | Δ MSE@150 | sequences improved |
+|---|---|---|---|
+| lk, flowm input (KWM as published) | −57.9% [−0.0404, −0.0387] | −27.7% [−0.0454, −0.0424] | 1.00 / 0.97 |
+| lock, zero input | −70.7% [−0.0492, −0.0473] | −55.8% [−0.0898, −0.0869] | 1.00 / 1.00 |
+| lock, zero-then-freeze 30 | −70.7% | −57.4% [−0.0924, −0.0893] | 1.00 / 1.00 |
+
+Denzel's one-seed FloWM figure (0.067 / 0.145, selection set, best checkpoint) is reproduced within the checkpoint
+noise (our selection-set 20k checkpoint: 0.0672 / 0.1221; five-checkpoint mean 0.0692 / 0.1596).
