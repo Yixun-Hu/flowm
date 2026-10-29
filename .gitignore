@@ -70,3 +70,7 @@ downloaded_checkpoints/*
 
 # Committed explanatory figures of the kinetic study
 !experiments/continuous_velocity/kinetic/figures/*.png
+
+# machine-specific NAS symlink and the FloWM paper copy (not part of the repo)
+/data
+/flowm.pdf
