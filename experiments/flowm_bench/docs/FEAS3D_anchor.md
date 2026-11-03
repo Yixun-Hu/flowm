@@ -35,3 +35,23 @@ with the discrete agent actions so that the released FloWM-3D remains a valid ba
 velocity law (uniform in a continuous range vs. speed classes), whether blocks accelerate, bounce rule for
 non-integer positions, camera model (keep discrete turns/forward, or add continuous ego motion), clip length and
 number, and whether to render with the Miniworld engine (depends on obtaining and modifying that repo).
+
+## Step 2 (2026-11-03): K3D-int control split through our generator pipeline
+
+Generator: `Miniworld-k3d` branch k3d (7e740ec), released dynamic command, 1000 clips of 500 frames, software
+rendering (xvfb + Mesa llvmpipe, CPU), no depth. Released checkpoint, same evaluation command with the split swapped.
+
+| 70 context + 70 predicted | MSE | PSNR | SSIM |
+|---|---:|---:|---:|
+| Released validation (anchor) | 0.000603 | 32.19 | 0.9673 |
+| K3D-int v1 (base fork, unseeded, 1000 clips) | 0.000756 | 31.21 | 0.9664 |
+| K3D-int v2 (branch k3d, seeds 20261103+idx, 999 clips) | 0.000680 | 31.67 | 0.9673 |
+
+The dynamics match the released clips (action mix forward 58.6 % / no-op 31.8 % / left 7 % / right 2.6 %, block
+counts 6–10, temporal change 0.125 vs 0.128). The remaining gap is appearance: over 40 clips our software-rendered
+frames are 2 % brighter and 16 % less sharp (mean gradient 0.0040 vs 0.0047), consistent with the llvmpipe
+multisample fallback (4 instead of 8/16 samples) and texture filtering. One seeded episode rendered through NVIDIA
+EGL on GPU 1 reproduced the trajectory exactly and was 16 % sharper than its software render; the two renders differ
+by MSE 9e-5. Whether the splits are rendered on the GPU is the user's decision (see the session report).
+The v1 and v2 numbers also show the clip-sampling variance of a 1000-clip set (different episodes, same law and
+renderer): about 10 %, so the released-vs-ours gap of 13 % on v2 is within about one such step.
