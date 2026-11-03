@@ -94,7 +94,7 @@ class BlockWorldVideoDataset(BaseAdvancedVideoDataset):
         "tex_training", "tex_validation",
         # Kinetic 3D (k3d) splits generated with the Miniworld-k3d fork; add a split here only once its data
         # exists, because build_metadata() caches an empty index for a missing split.
-        "k3d_int_validation", "k3d_int_validation_sw200", "k3d_int_validation_nv200",
+        "k3d_int_validation",
         ]
 
     def __init__(self, cfg: DictConfig, split: str = "training", purpose: str = "training"):
