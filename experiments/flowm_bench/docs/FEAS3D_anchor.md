@@ -55,3 +55,18 @@ EGL on GPU 1 reproduced the trajectory exactly and was 16 % sharper than its sof
 by MSE 9e-5. Whether the splits are rendered on the GPU is the user's decision (see the session report).
 The v1 and v2 numbers also show the clip-sampling variance of a 1000-clip set (different episodes, same law and
 renderer): about 10 %, so the released-vs-ours gap of 13 % on v2 is within about one such step.
+
+### Renderer check (2026-11-03, user-approved NVIDIA rendering on GPU 1)
+
+The same 200 seeded K3D-int episodes (seeds 20261103–20261302; trajectories, actions and block states bit-identical
+across renderers) rendered with Mesa llvmpipe (CPU) and with NVIDIA EGL on GPU 1, released checkpoint:
+
+| 200 paired episodes, 70 + 70 | MSE | PSNR | SSIM |
+|---|---:|---:|---:|
+| Software render (llvmpipe, 4 multisamples) | 0.000720 | 31.43 | 0.9672 |
+| NVIDIA render (GPU 1) | 0.000608 | 32.16 | 0.9682 |
+| Released validation, 1000 clips (anchor) | 0.000603 | 32.19 | 0.9673 |
+
+The renderer explains the whole gap: NVIDIA-rendered K3D-int scores the anchor. All kinetic 3D splits are therefore
+rendered with NVIDIA EGL on GPU 1 (EGL device 1 = CUDA device 1, verified; ≈ 200 MB per render process, eight
+processes, gated on free memory). Rendering throughput ≈ 1.3 s per 500-frame clip with eight processes.
