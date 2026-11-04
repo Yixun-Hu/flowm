@@ -70,3 +70,41 @@ across renderers) rendered with Mesa llvmpipe (CPU) and with NVIDIA EGL on GPU 1
 The renderer explains the whole gap: NVIDIA-rendered K3D-int scores the anchor. All kinetic 3D splits are therefore
 rendered with NVIDIA EGL on GPU 1 (EGL device 1 = CUDA device 1, verified; ≈ 200 MB per render process, eight
 processes, gated on free memory). Rendering throughput ≈ 1.3 s per 500-frame clip with eight processes.
+
+## Step 3 (2026-11-03): validation and test splits for all three laws, NVIDIA-rendered
+
+Generator `Miniworld-k3d` branch k3d at 7e740ec, commands as in `scripts/K3D_COMMANDS.md`, eight render processes on
+GPU 1, 500 frames per clip, 6–10 blocks, no depth, `_block_info.pt` stored. Wall time ≈ 25.5 min per 1000 clips.
+
+| Split | Law | Base seed | Clips | Size |
+|---|---|---:|---:|---:|
+| k3d_int_validation | released integer (grid mode, cardinal unit velocities) | 20261103 | 1000 | 1.1 GB |
+| k3d_v_validation | continuous velocity, speed U[0.25, 1], direction uniform | 20261203 | 1000 | 1.4 GB |
+| k3d_v_test | same law, fresh seeds (held out) | 20261303 | 1000 | 1.4 GB |
+| k3d_a_validation | continuous velocity + per-block \|a\| log-U[2e-3, 1e-2] | 20261403 | 1000 | 1.3 GB |
+| k3d_a_test | same law, fresh seeds (held out) | 20261503 | 1000 | 1.4 GB |
+
+Verification (100 sampled clips per split): 100 distinct seeds; 500 frames; block count 6–10 and equal to the stored
+state's block count; `_actions.pt` keys exactly the released six; rgb.mp4 128 × 128 at 15 fps, 500 frames; block
+centres stay inside [1, 15] on both axes (mirror bounds); K3D-int positions are all integers with speed exactly 1;
+K3D-v/K3D-a positions are 100 % fractional with initial speed in [0.25, 1.0] (median 0.62); K3D-a |a| in
+[2e-3, 1e-2] (median 4.4e-3) and maximum speed over all frames 1.10 (< the 1.2 cap, consistent with the energy
+bound); about 230 wall-bounce events per clip (all blocks, both axes). Frame montages of released, K3D-int, K3D-v
+and K3D-a clips look alike by eye; the top-down map of a K3D-v clip shows blocks off the integer grid.
+
+Released FloWM-3D checkpoint, 1000 clips, 70 context + 70 predicted:
+
+| Split | MSE | PSNR | SSIM |
+|---|---:|---:|---:|
+| Released validation (anchor) | 0.000603 | 32.19 | 0.9673 |
+| k3d_int_validation (NVIDIA, 1000 clips) | 0.000625 | 32.04 | 0.9682 |
+| k3d_v_validation, zero-shot | 0.01916 | 17.18 | 0.8660 |
+| k3d_a_validation, zero-shot | 0.01888 | 17.24 | 0.8676 |
+
+K3D-int scores within 4 % of the anchor on independent episodes (the earlier software render was 13 % off), so the
+pipeline is a faithful control. The zero-shot numbers on K3D-v and K3D-a are references only: the released model was
+trained on the integer law, and the 30× MSE gap mostly reflects the law change plus the lack of retraining. The
+FloWM-3D baseline must be retrained on each split before any comparison (design doc §6).
+
+Training splits (10,000 clips each for K3D-v and K3D-a, ≈ 4.3 h each at the measured rate) are not generated: they
+wait for the user's approval of the model design (KINETIC3D_model_design.md, D1–D7).
