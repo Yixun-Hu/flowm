@@ -1,4 +1,4 @@
-# H1 campaign progress (updated 2026-10-31, 07:30 EDT)
+# H1 campaign progress (updated 2026-11-03, 16:40 EST)
 
 Protocol: Kinetic MNIST World, real velocities and camera; every arm trained with the same seed, schedule and batch
 (`--bs 16 --steps 20000`, adaptive arms with `--grad_ckpt`); scored as the **mean over checkpoints 16k–20k on 1000
@@ -7,41 +7,42 @@ Seed 0 adaptive arms are the pilot runs (`pilot_lk`, `pilot_lock`); later seeds 
 
 ## Per-seed table (MSE@20 / MSE@150)
 
-| Arm | Prediction input | seed 0 | seed 1 | seed 2 | mean (3 seeds) |
-|---|---|---:|---:|---:|---:|
-| FloWM (KWM-sized) | native | 0.0683 / 0.1584 | 0.0677 / 0.1750 | 0.0682 / 0.2024 | 0.0681 / 0.1786 |
-| FloWM | zero | 0.0811 / 0.1581 | 0.0726 / 0.1325 | 0.0853 / 0.1336 | 0.0797 / 0.1414 |
-| lk (KWM adaptive, published) | flowm | 0.0288 / 0.1144 | 0.0293 / 0.1463 | 0.0269 / 0.1096 | 0.0283 / 0.1234 |
-| lk | zero | 0.0262 / 0.0892 | 0.0262 / 0.0995 | 0.0245 / 0.0864 | 0.0256 / 0.0917 |
-| lock (PR1) | flowm | 0.0218 / 0.0888 | 0.0217 / 0.0918 | 0.0222 / 0.0879 | 0.0219 / 0.0895 |
-| lock | zero | 0.0200 / 0.0700 | 0.0196 / 0.0692 | 0.0202 / 0.0823 | **0.0199 / 0.0738** |
-| lock | zero, freeze after 30 | 0.0200 / 0.0675 | 0.0196 / 0.0709 | 0.0202 / 0.0733 | 0.0199 / 0.0706 |
+| Arm | Prediction input | seed 0 | seed 1 | seed 2 | seed 3 | mean (4 seeds) |
+|---|---|---:|---:|---:|---:|---:|
+| FloWM (KWM-sized) | native | 0.0683 / 0.1584 | 0.0677 / 0.1750 | 0.0682 / 0.2024 | – | 0.0681 / 0.1786 (3 seeds) |
+| FloWM | zero | 0.0811 / 0.1581 | 0.0726 / 0.1325 | 0.0853 / 0.1336 | – | 0.0797 / 0.1414 (3 seeds) |
+| lk (KWM adaptive, published) | flowm | 0.0288 / 0.1144 | 0.0293 / 0.1463 | 0.0269 / 0.1096 | 0.0283 / 0.1724 | 0.0283 / 0.1357 |
+| lk | zero | 0.0262 / 0.0892 | 0.0262 / 0.0995 | 0.0245 / 0.0864 | 0.0257 / 0.0877 | 0.0256 / 0.0907 |
+| lock (PR1) | flowm | 0.0218 / 0.0888 | 0.0217 / 0.0918 | 0.0222 / 0.0879 | 0.0219 / 0.0851 | 0.0219 / 0.0884 |
+| lock | zero | 0.0200 / 0.0700 | 0.0196 / 0.0692 | 0.0202 / 0.0823 | 0.0198 / 0.0699 | **0.0199 / 0.0729** |
+| lock | zero, freeze after 30 | 0.0200 / 0.0675 | 0.0196 / 0.0709 | 0.0202 / 0.0733 | 0.0198 / 0.0720 | 0.0199 / 0.0709 |
 
-FloWM is complete (3 seeds planned). Adaptive seeds 3 and 4 are in the unattended chain (seed 3 training).
+FloWM is complete (3 seeds planned). Adaptive seed 4 is training in the unattended chain (started 2026-11-03 09:26).
+Seed 3 was resumed from its last checkpoint after the tmux session was killed on 2026-10-31 (resume boundary recorded
+in the checkpoint provenance).
 
-## Seed-level paired comparisons (3 seeds; paired t-test df = 2; the exact sign-flip test cannot go below p = 0.25 at n = 3)
+## Seed-level paired comparisons (4 seeds; paired t-test df = 3)
 
 | Comparison | @20: mean, per seed, p | @150: mean, per seed, p |
 |---|---|---|
-| lk → lock, flowm input | −22.7% [−24.3, −26.1, −17.6], p = 0.018 | −26.5% [−22.4, −37.2, −19.8], p = 0.082 |
-| lk → lock, zero input | −22.2% [−23.4, −25.3, −17.9], p = 0.014 | −18.9% [−21.5, −30.4, −4.8], p = 0.14 |
-| lk (published default) → lock zero | −29.6% [−30.3, −33.3, −25.1], p = 0.011 | −38.8% [−38.8, −52.7, −24.9], p = 0.077 |
-| FloWM → lock zero | −70.7% [−70.7, −71.1, −70.4], p < 0.001 | −58.5% [−55.8, −60.4, −59.3], p = 0.008 |
-| FloWM → lk (Denzel's gain) | −58.4% [−57.9, −56.7, −60.5], p < 0.001 | −30.0% [−27.7, −16.4, −45.9], p = 0.10 |
-| flowm → zero input, lk | −9.5% [−9.0, −10.7, −8.8], p = 0.007 | −25.1% [−22.1, −32.0, −21.1], p = 0.053 |
-| flowm → zero input, lock | −8.9% [−8.0, −9.7, −9.1], p = 0.003 | −17.4% [−21.2, −24.6, −6.4], p = 0.093 |
-| zero → zero-then-freeze 30, lock | 0.0% (identical by construction) | −4.0% [−3.6, +2.5, −10.9], p = 0.40 |
+| lk → lock, flowm input | −22.7% [−24.3, −26.1, −17.6, −22.7], p = 0.002 | −32.5% [−22.4, −37.2, −19.8, −50.6], p = 0.053 |
+| lk → lock, zero input | −22.3% [−23.4, −25.3, −17.9, −22.7], p = 0.001 | −19.2% [−21.5, −30.4, −4.8, −20.2], p = 0.045 |
+| lk (published default) → lock zero | −29.7% [−30.3, −33.3, −25.1, −30.0], p = 0.001 | −44.0% [−38.8, −52.7, −24.9, −59.4], p = 0.033 |
+| flowm → zero input, lk | −9.5% [−9.0, −10.7, −8.8, −9.4], p < 0.001 | −31.1% [−22.1, −32.0, −21.1, −49.2], p = 0.051 |
+| flowm → zero input, lock | −9.1% [−8.0, −9.7, −9.1, −9.4], p < 0.001 | −17.5% [−21.2, −24.6, −6.4, −17.8], p = 0.024 |
+| zero → zero-then-freeze 30, lock | 0.0% (identical by construction) | −2.3% [−3.6, +2.5, −10.9, +3.0], p = 0.51 |
+
+FloWM comparisons are unchanged from the 3-seed table above (FloWM → lock zero −70.7% / −58.5%).
 
 ## Reading so far
 
-- **lock over lk** is consistent in sign on all three seeds, both horizons, both inputs. At 20 frames the effect is
-  tight (−18 to −26%, p ≈ 0.015 with three seeds). At 150 frames the size varies with the seed (−5 to −37%); seed 2's
-  lock run has weaker late checkpoints (19k and 20k score 0.102 and 0.085 at 150 frames under zero input versus
-  0.068–0.070 at 16k–17k; selection-set curve agrees). This is the constant-learning-rate checkpoint noise the
-  checkpoint-averaged protocol was designed to expose rather than hide. Five seeds decide the 150-frame claim.
-- **Zero prediction input over feedback** holds on every arm and seed. Checkpoint spikes under feedback recur in
-  every arm (lk s1 20k 0.29, FloWM s2 16k 0.38 at MSE@150) and vanish under zero input. Zero input hurts FloWM at
-  20 frames (+17%): FloWM has no transport to carry the scene without feedback.
-- **Zero-then-freeze 30**: sign flips across seeds (−3.6, +2.5, −10.9%). Not a claim; stays an option in PR3.
-- **Denzel's published numbers reproduce**: lk 0.0283 / 0.123 and FloWM 0.0681 / 0.179 bracket his one-seed
-  0.027 / 0.089 and 0.067 / 0.145 (his were selection-set best checkpoints, which flatter the 150-frame column).
+- **lock over lk** holds on all four seeds, both horizons, both inputs. At 20 frames the effect is tight (−18 to
+  −26%, p ≈ 0.001–0.002 with four seeds). At 150 frames it is now significant under zero input (−19%, p = 0.045) and
+  borderline under feedback (−33%, p = 0.053), where seed 3's lk run adds another feedback instability (0.172 at 150
+  frames under feedback versus 0.088 under zero input). Seed 2's lock run keeps its weak late checkpoints (0.082).
+- **Zero prediction input over feedback** holds on every arm and seed (lock: −9% at 20 frames, −17.5% at 150 frames,
+  p = 0.024). Seed 3 repeats the pattern: lk under feedback has a late-checkpoint spike; under zero input its
+  checkpoints 16k–20k are flat (0.086, 0.080, 0.094, 0.102, 0.078).
+- **Zero-then-freeze 30**: sign flips (−3.6, +2.5, −10.9, +3.0%). Not a claim; stays an option in PR3.
+- **Denzel's published numbers reproduce**: lk 0.0283 / 0.136 and FloWM 0.0681 / 0.179 bracket his one-seed
+  0.027 / 0.089 and 0.067 / 0.145 (selection-set best checkpoints flatter the 150-frame column).
