@@ -108,8 +108,8 @@ as `block_vel_object_incoming`; the requested raw metadata fields stay unchanged
 The first global frame has zero incoming displacement. Missing corrected
 metadata raises an error, without silently falling back to raw velocities.
 Both conventions mask padded slots identically and read metadata during
-prediction as well as context. The configuration default was not silently
-changed while the clarification remained unanswered.
+prediction as well as context. Maintainer decision (2026-11-04): `incoming_object` is the configured default; `raw` stays available as a
+diagnostic only. The stage 1 gate reports both conventions as `literal` and `intrinsic_incoming`.
 
 ## Data, metrics and initialization
 

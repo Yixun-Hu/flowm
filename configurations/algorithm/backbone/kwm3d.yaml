@@ -20,6 +20,7 @@ imprint_k: 8
 sigma: 1.0
 step_clip: 0.3
 s_init: 1.0
-# Literal brief behavior. See README: the current generator's raw field is
-# outgoing and ego-relative. incoming_object corrects both conventions.
-oracle_velocity: raw
+# Maintainer decision (2026-11-04): the recurrence transports by the object's own incoming displacement
+# (t-1 -> t) in the current agent frame and applies ego motion separately, so incoming_object is the oracle.
+# raw = the generator's outgoing, camera-relative block_vel_agent (kept only as a diagnostic).
+oracle_velocity: incoming_object
