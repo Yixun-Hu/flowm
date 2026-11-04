@@ -96,6 +96,7 @@ class BlockWorldVideoDataset(BaseAdvancedVideoDataset):
         # exists, because build_metadata() caches an empty index for a missing split.
         "k3d_int_validation", "k3d_int_validation_sw200", "k3d_int_validation_nv200",
         "k3d_v_validation", "k3d_v_test", "k3d_a_validation", "k3d_a_test",
+        "k3d_null_noblocks", "k3d_null_static",  # 50 CPU-rendered clips each, stage 1 background null
         ]
 
     def __init__(self, cfg: DictConfig, split: str = "training", purpose: str = "training"):
