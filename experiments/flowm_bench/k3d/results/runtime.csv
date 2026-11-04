@@ -1,0 +1,7 @@
+stage,clips,seconds
+Original lift: k3d_int_validation,20,152.48
+Original lift: k3d_v_validation,200,1559.12
+Original lift: k3d_null_noblocks,50,407.11
+Original lift: k3d_null_static,50,387.09
+Nested probe: tokens,200,23.59
+Nested probe: h_new,200,23.36

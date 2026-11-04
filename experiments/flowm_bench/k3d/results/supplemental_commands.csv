@@ -1,0 +1,12 @@
+command,seconds,timing_basis,status
+/home/yixunhu/miniconda3/envs/flowm/bin/python -m experiments.flowm_bench.k3d.released_sanity,95.1,in-Python measured sanity time; initial run,0
+/home/yixunhu/miniconda3/envs/flowm/bin/python -m experiments.flowm_bench.k3d.lift --split k3d_int_validation --clips 20,152.48,"sum of original per-clip times, excludes process imports",0
+bash experiments/flowm_bench/k3d/run_cpu.sh lift --split k3d_v_validation --clips 200,1559.12,"sum of original per-clip times, excludes process imports",0
+/home/yixunhu/miniconda3/envs/flowm/bin/python -m experiments.flowm_bench.k3d.geometry --clips 20,not timed,initial empirical sign check; timed repeat in commands.csv,0
+bash experiments/flowm_bench/k3d/run_cpu.sh null_test --split k3d_int_validation --clips 1 --variants tokens --sigmas 1,4.52,estimator batch only; calibration subsequently discarded,0
+bash experiments/flowm_bench/k3d/run_cpu.sh null_test --split k3d_int_validation --clips 8 --variants tokens --sigmas 1,9.30,seven new estimator clips; one cached; calibration subsequently discarded,0
+bash experiments/flowm_bench/k3d/run_cpu.sh estimator_gate --clips 8 --variants tokens --ks 32 --sigmas 1,18.17,estimator batch only; calibration subsequently discarded,0
+bash experiments/flowm_bench/k3d/run_cpu.sh probe_subcell --clips 10,not timed,smoke run; overwritten by full 200-clip run,0
+bash experiments/flowm_bench/k3d/run_cpu.sh data_audit,not timed,320-clip action/velocity identity audit,0
+/home/yixunhu/miniconda3/envs/flowm/bin/python experiments/flowm_bench/k3d/.scratch/audit_kwm_revision.py,3.240,in-script dependency parity comparison; excludes imports,0
+/home/yixunhu/miniconda3/envs/flowm/bin/python -m pytest tests/k3d/test_stage1.py -q -o cache_dir=experiments/flowm_bench/k3d/.scratch/pytest_cache,11.53,pytest-reported final duration,0

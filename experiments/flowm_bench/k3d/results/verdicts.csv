@@ -1,0 +1,4 @@
+test,verdict,criterion,measurement
+sub-cell probe,PASS,R² ≥ .25 on both axes and ≥ 5 × shuffled R²,"forward R²=0.29013, shuffled=-0.02277; right R²=0.39626, shuffled=-0.01708"
+background null,FAIL,Alarm ≤ 2% and evidence-weighted speed ≤ .05 on both null splits,"σ=0.5; k3d_null_noblocks: 4.43%, 1.01117; k3d_null_static: 4.08%, 1.03680"
+estimator gate (K=8),FAIL,"Matched median ≤ .1 and misses ≤ 30%, speeds .25–1, best σ","σ=0.5, median=1.21972, misses=98.32%"

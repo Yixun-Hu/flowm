@@ -1,0 +1,4 @@
+case,clips,pairs_per_clip,seconds
+"K8 B1 int, sigma1, tokens",1,139,4.518521088175476
+"K8 B7 int, sigma1, tokens",7,139,9.298365734517574
+"K32 B8 v, sigma1, tokens",8,139,18.17

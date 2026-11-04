@@ -1,0 +1,14 @@
+command,seconds,status
+bash /home/yixunhu/codespace/flowm/experiments/flowm_bench/k3d/run_cpu.sh released_sanity,117.219,0
+bash /home/yixunhu/codespace/flowm/experiments/flowm_bench/k3d/run_cpu.sh geometry --clips 20,14.396,0
+bash /home/yixunhu/codespace/flowm/experiments/flowm_bench/k3d/run_cpu.sh lift --split k3d_int_validation --clips 20,19.264,0
+bash /home/yixunhu/codespace/flowm/experiments/flowm_bench/k3d/run_cpu.sh lift --split k3d_v_validation --clips 200,26.592,0
+bash /home/yixunhu/codespace/flowm/experiments/flowm_bench/k3d/run_cpu.sh probe_subcell --clips 200,62.961,0
+bash /home/yixunhu/codespace/flowm/experiments/flowm_bench/k3d/run_cpu.sh lift --split k3d_null_noblocks --clips 50,428.822,0
+bash /home/yixunhu/codespace/flowm/experiments/flowm_bench/k3d/run_cpu.sh lift --split k3d_null_static --clips 50,413.045,0
+bash /home/yixunhu/codespace/flowm/experiments/flowm_bench/k3d/run_cpu.sh null_test --split k3d_null_noblocks --clips 50,361.450,0
+bash /home/yixunhu/codespace/flowm/experiments/flowm_bench/k3d/run_cpu.sh null_test --split k3d_null_static --clips 50,360.290,0
+bash /home/yixunhu/codespace/flowm/experiments/flowm_bench/k3d/run_cpu.sh null_test --split k3d_int_validation --clips 20,144.865,0
+bash /home/yixunhu/codespace/flowm/experiments/flowm_bench/k3d/run_cpu.sh estimator_gate --clips 200,3821.520,0
+bash /home/yixunhu/codespace/flowm/experiments/flowm_bench/k3d/run_cpu.sh report,11.068,0
+bash experiments/flowm_bench/k3d/run_cpu.sh probe_subcell --clips 200,59.932,0

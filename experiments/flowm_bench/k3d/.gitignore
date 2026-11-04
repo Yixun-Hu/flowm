@@ -1,0 +1,4 @@
+# Keep the requested CSV evidence despite the repository-wide results/ and CSV rules.
+!results/
+!results/*.csv
+!run_cpu.sh

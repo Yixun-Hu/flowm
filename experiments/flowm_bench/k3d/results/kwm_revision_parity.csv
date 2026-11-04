@@ -1,0 +1,13 @@
+variant,k,sigma,pairs,bitwise_equal,max_difference
+tokens,8,0.5,12,True,0.0
+tokens,8,1.0,12,True,0.0
+tokens,8,2.0,12,True,0.0
+tokens,32,0.5,12,True,0.0
+tokens,32,1.0,12,True,0.0
+tokens,32,2.0,12,True,0.0
+h_new,8,0.5,12,True,0.0
+h_new,8,1.0,12,True,0.0
+h_new,8,2.0,12,True,0.0
+h_new,32,0.5,12,True,0.0
+h_new,32,1.0,12,True,0.0
+h_new,32,2.0,12,True,0.0
