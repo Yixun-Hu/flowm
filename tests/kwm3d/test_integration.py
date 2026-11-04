@@ -21,6 +21,7 @@ def test_all_configs_and_screening():
             assert cfg.algorithm.backbone.arm==arm
             assert cfg.algorithm.backbone.model_type=='kwm3d'
             assert cfg.algorithm.backbone.checkpoint_steps and cfg.dataset.load_block_info
+            assert cfg.algorithm.backbone.residual_mode=='mask'
             assert cfg.experiment.training.batch_size==8
             assert list(cfg.experiment.training.splits_included)==['k3d_v_training']
         cfg=compose(config_name='config',overrides=['shortcode=[exp/blockworld/kwm3d/train/a,exp/blockworld/kwm3d/screening_finetune]'])
@@ -36,6 +37,20 @@ def test_backbone_factory():
     cfg=OmegaConf.create(dict(model_type='kwm3d',arm='b',hidden_channels=32,map_proc_encoder_depth=1,
                              decoder_depth=1,num_heads=4,input_shape='(3,32,32)',patch_size=8))
     assert isinstance(create_main_model(cfg),KineticBlockworldModel)
+    cfg.arm='a'
+    cfg.residual_mode='subtract'
+    assert create_main_model(cfg).refiner.residual_mode=='subtract'
+
+
+def test_block_metric_filter_is_specific_to_flowm():
+    from algorithms.common.metric_mixin import MetricMixin
+    dummy=SimpleNamespace(logging_cfg=SimpleNamespace(metrics=['mse','block_mse']))
+    assert MetricMixin._video_metric_types(dummy)==['mse','block_mse']
+    with initialize_config_dir(version_base=None,config_dir=str(ROOT/'configurations')):
+        cfg=compose(config_name='config',overrides=['shortcode=exp/blockworld/kwm3d/train/b'])
+    algo=FloWMVideo(cfg.algorithm)
+    assert 'block_mse' not in algo._video_metric_types()
+    assert 'block_mse' in algo.logging_cfg.metrics
 
 
 def test_metadata_is_signature_gated_and_released_mode_loads():

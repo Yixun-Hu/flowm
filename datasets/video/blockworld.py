@@ -224,6 +224,15 @@ class BlockWorldVideoDataset(BaseAdvancedVideoDataset):
         """
         video_path = Path(video_metadata["video_paths"])
         path = video_path.with_name(video_path.stem.removesuffix("_rgb") + "_block_info.pt")
+        # All opt-in samples expose the same keys, including legacy splits
+        # without block files. Empty slots cannot affect oracle or region metrics.
+        result = {key: torch.zeros(self.n_frames, 10, 2) for key in
+                  ("block_pos_agent", "block_vel_agent", "block_vel_object_incoming")}
+        result.update(block_speed=torch.zeros(self.n_frames, 10),
+                      block_valid=torch.zeros(self.n_frames, 10, dtype=torch.bool),
+                      block_incoming_valid=torch.zeros(self.n_frames, 10, dtype=torch.bool))
+        if not path.exists():
+            return {key: value[::self.frame_skip] for key, value in result.items()}
         info = torch.load(path, map_location="cpu", weights_only=False)
         indices = torch.as_tensor(video_metadata["video_pts"][start_frame:end_frame], dtype=torch.long)
         positions = torch.as_tensor(info["block_pos_agent"])
@@ -234,18 +243,12 @@ class BlockWorldVideoDataset(BaseAdvancedVideoDataset):
         if len(indices) and int(indices.max()) >= len(positions):
             raise ValueError(f"Block metadata is shorter than the returned video: {path}")
         length = len(indices)
-        result = {}
         for name, source in (("block_pos_agent", positions), ("block_vel_agent", velocities)):
-            out = torch.zeros(self.n_frames, 10, 2, dtype=torch.float32)
-            out[:length, :count] = source[indices].float()
-            result[name] = out[::self.frame_skip]
-        valid = torch.zeros(self.n_frames, 10, dtype=torch.bool)
-        valid[:length, :count] = True
-        result["block_valid"] = valid[::self.frame_skip]
-        if "block_speed" in info:
-            speed = torch.zeros(self.n_frames, 10)
-            speed[:length, :count] = torch.as_tensor(info["block_speed"])[indices]
-            result["block_speed"] = speed[::self.frame_skip]
+            result[name][:length, :count] = source[indices].float()
+        result["block_valid"][:length, :count] = True
+        # Preserve the metric helper's velocity-norm fallback for older files.
+        speed = torch.as_tensor(info["block_speed"]) if "block_speed" in info else velocities.norm(dim=-1)
+        result["block_speed"][:length, :count] = speed[indices]
         if "block_vel_world" in info and "agent_dir" in info:
             # Optional corrected oracle: the incoming object displacement, in
             # the destination frame, before ego motion is subtracted by stream.
@@ -257,10 +260,9 @@ class BlockWorldVideoDataset(BaseAdvancedVideoDataset):
             vx, vz = world.unbind(-1)
             incoming = torch.stack((c * vx - s * vz, s * vx + c * vz), -1)
             incoming[indices == 0] = 0
-            out = torch.zeros(self.n_frames, 10, 2)
-            out[:length, :count] = incoming
-            result["block_vel_object_incoming"] = out[::self.frame_skip]
-        return result
+            result["block_vel_object_incoming"][:length, :count] = incoming
+            result["block_incoming_valid"][:length, :count] = True
+        return {key: value[::self.frame_skip] for key, value in result.items()}
 
     def load_depth(self, video_metadata: Dict[str, Any], start_frame: int, end_frame: Optional[int] = None) -> Optional[torch.Tensor]:
         """

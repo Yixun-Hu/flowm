@@ -59,6 +59,10 @@ class FloWMVideo(BaseWMMixin, BasePytorchAlgo):
     # ---------------------------------------------------------------------
     # Model & Metrics building
     # ---------------------------------------------------------------------
+    def _video_metric_types(self):
+        # FloWM owns the block geometry metric, which also needs metadata.
+        return [metric for metric in super()._video_metric_types() if metric != "block_mse"]
+
     def configure_model(self) -> None:
         """
         Build the model

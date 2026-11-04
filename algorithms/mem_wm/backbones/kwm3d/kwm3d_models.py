@@ -1,5 +1,7 @@
 """Kinetic FloWM-3D, importing both FloWM modules and KWM primitives."""
 
+import inspect
+
 import torch
 from torch import nn
 from torch.utils.checkpoint import checkpoint
@@ -21,14 +23,19 @@ ARMS = ("c", "c_pw", "a_oracle", "a", "b")
 class _LockArithmetic(AdaptiveNodeCell):
     """Reuse the installed cell's exact update arithmetic, without its CNN lift.
 
-    kwm (k3d-base, 94803f5) routes the measurement through the overridable
+    kwm (k3d-base, 2e73903) routes the measurement through the overridable
     `_measure_lock` hook; this subclass passes the cone box, support mask and
     residual options there. A one-cell dummy feature bank makes the cell's
     otherwise unused feature transport negligible.
     """
-    def __init__(self, world, sigma, step_clip, s_init):
+    def __init__(self, world, sigma, step_clip, s_init, residual_mode, support_mask_key):
         nn.Module.__init__(self)
         self.world, self.sigma = world, sigma
+        self.residual_mode = residual_mode
+        # 2e73903 rebuilds this key in LocalSearch. Use the precomputed value
+        # once the optional API in .scratch/kwm_mask_key.diff is available.
+        self._search_options = ({"support_mask_key": support_mask_key}
+                                if "support_mask_key" in inspect.signature(lock_measurement).parameters else {})
         self.step_clip, self.bound = step_clip, 0.75
         self.lam_rel, self.tr_rel, self.gate, self.coh_rel = 1e-2, 0.1, 0.6, 0.5
         self.pin_static, self.c4_numerics = True, True
@@ -43,7 +50,8 @@ class _LockArithmetic(AdaptiveNodeCell):
 
     def _measure_lock(self, *args, **kwargs):
         return lock_measurement(*args, box=self._box, support_mask=self._support,
-                                sigma=self.sigma, radius=None, static_residual=True, **kwargs)
+                                sigma=self.sigma, radius=None, static_residual=self.residual_mode,
+                                **self._search_options, **kwargs)
 
     def forward(self, previous, current, state, lattice, action, box, support):
         self._box, self._support = box, support
@@ -56,7 +64,7 @@ class _LockArithmetic(AdaptiveNodeCell):
 class KineticBlockworldModel(ViTBlockworldModel):
     def __init__(self, arm="a", lattice=None, map_conv="c4", write=None,
                  checkpoint_steps=True, imprint_k=8, sigma=1.0, step_clip=0.3,
-                 s_init=1.0, oracle_velocity="raw", **flowm_kwargs):
+                 s_init=1.0, oracle_velocity="incoming_object", residual_mode="mask", **flowm_kwargs):
         arm = arm.lower().replace("-", "_")
         if arm not in ARMS:
             raise ValueError(f"arm must be one of {ARMS}")
@@ -74,6 +82,9 @@ class KineticBlockworldModel(ViTBlockworldModel):
         if oracle_velocity not in ("raw", "incoming_object"):
             raise ValueError("oracle_velocity must be raw or incoming_object")
         self.oracle_velocity = oracle_velocity
+        if residual_mode not in ("subtract", "mask"):
+            raise ValueError("residual_mode must be subtract or mask")
+        self.residual_mode = residual_mode
         self.checkpoint_steps = checkpoint_steps
         self.kinetic = arm in ("a", "a_oracle", "b")
         chosen = lattice or ("v17" if arm == "a" else "v9" if arm == "b" else "v5")
@@ -90,6 +101,13 @@ class KineticBlockworldModel(ViTBlockworldModel):
         self.register_buffer("perms", rotation_perms(nodes) if arm != "a_oracle"
                              else torch.empty(0, dtype=torch.long), persistent=False)
         self.map_processor.num_v = len(nodes)
+        # Geometry is fixed for this model; never copy bounding coordinates
+        # from the device during a rollout or checkpoint recomputation.
+        mask = self._get_fov_mask(torch.device('cpu'))
+        rc = mask.nonzero()
+        self.imprint_box = tuple(rc.amin(0).tolist())
+        self.imprint_end = tuple((rc.amax(0) + 1).tolist())
+        self.imprint_shape = tuple(end - start for start, end in zip(self.imprint_box, self.imprint_end))
         if self.kinetic:
             self.v_channel_mixing = None
             if map_conv == "c4":
@@ -102,7 +120,11 @@ class KineticBlockworldModel(ViTBlockworldModel):
                 raise ValueError("map_conv must be c4 or plain")
         if arm == "a":
             self.register_buffer("P", _fixed_projection(self.embed_dim, imprint_k))
-            self.refiner = _LockArithmetic(self.map_processor.world_size, sigma, step_clip, s_init)
+            r0, c0 = self.imprint_box
+            r1, c1 = self.imprint_end
+            mask_key = tuple(mask[r0:r1, c0:c1].flatten().tolist())
+            self.refiner = _LockArithmetic(self.map_processor.world_size, sigma, step_clip, s_init,
+                                          residual_mode, mask_key)
         self.last_nodes = self.last_node_state = None
 
     def _pooled_write(self, h, frame, mask, valid):
@@ -136,9 +158,8 @@ class KineticBlockworldModel(ViTBlockworldModel):
         zero = frame.new_zeros(frame.shape[0], 1, size, size, self.embed_dim)
         valid = torch.ones(frame.shape[0], 1, dtype=torch.bool, device=frame.device)
         written = self._pooled_write(zero, frame, mask, valid)[:, 0]
-        rc = mask.nonzero()
-        r0, c0 = rc.amin(0).tolist()
-        r1, c1 = (rc.amax(0) + 1).tolist()
+        r0, c0 = self.imprint_box
+        r1, c1 = self.imprint_end
         with torch.autocast(device_type=frame.device.type, enabled=False):
             imprint = torch.einsum("kc,bhwc->bkhw", self.P.float(), written.float())
         return imprint[:, :, r0:r1, c0:c1], (r0, c0), mask[r0:r1, c0:c1]
@@ -187,7 +208,7 @@ class KineticBlockworldModel(ViTBlockworldModel):
         tokens = (tokens + pos[None, None]).masked_fill(~valid[:, :, None, None], -torch.inf)
         return self.decoder(tokens.max(1).values)
 
-    def _step(self, h, state, snapshot, snapshot_valid, frame, action, nodes, valid,
+    def _step(self, h, state, frame, action, nodes, valid,
               mask, prediction, teacher_force, record_latent):
         h, state = self._move(h, state, action, nodes)
         h = self._mix(h) * valid[:, :, None, None, None]
@@ -195,22 +216,7 @@ class KineticBlockworldModel(ViTBlockworldModel):
         out = self._decode(h, mask, valid) if prediction else frame
         obs = frame if teacher_force or not prediction else out
         h = self._write(h, obs, mask, valid)
-        if self.arm == "a" and not prediction:
-            current, box, support = self.observation_imprint(obs, mask)
-            turning = (action == 0) | (action == 1)
-            usable = snapshot_valid & ~turning
-            if usable.any():
-                ego = torch.stack(((action == 2).float(), torch.zeros_like(action).float()), -1)
-                measured = self.refiner(snapshot[usable], current[usable], state[usable],
-                                        self.lattice, ego[usable], box, support)
-                state = state.clone()
-                state[usable] = measured
-            # Turn frames invalidate the pair, including the following step.
-            snapshot = torch.where(turning[:, None, None, None], torch.zeros_like(current), current)
-            snapshot_valid = ~turning
-        # Prediction keeps evidence/rho/snapshot frozen, except the coordinate
-        # change of rho and node labels in _move. No decoded-frame measurement.
-        return h, state, snapshot, snapshot_valid, out, latent
+        return h, state, out, latent
 
     def _oracle(self, metadata, t, device):
         key = "block_vel_agent" if self.oracle_velocity == "raw" else "block_vel_object_incoming"
@@ -218,6 +224,10 @@ class KineticBlockworldModel(ViTBlockworldModel):
             raise ValueError(f"A-oracle needs batched {key} and block_valid metadata")
         vel = metadata[key][:, t].to(device=device, dtype=torch.float32)
         valid = metadata["block_valid"][:, t].to(device=device, dtype=torch.bool)
+        if self.oracle_velocity == "incoming_object" and "block_incoming_valid" in metadata:
+            available = metadata["block_incoming_valid"][:, t].to(device=device, dtype=torch.bool)
+            if (valid & ~available).any():
+                raise ValueError("A-oracle needs block_vel_object_incoming for every valid block")
         if vel.shape[1:] != (MAX_BLOCKS, 2) or valid.shape != vel.shape[:2]:
             raise ValueError("oracle metadata must be padded to 10 blocks")
         vel = agent_to_map(vel).masked_fill(~valid[..., None], 0)
@@ -238,9 +248,7 @@ class KineticBlockworldModel(ViTBlockworldModel):
         mask = self._get_fov_mask(input_seq.device)
         h = self.map_processor.init_map(b, input_seq.device)
         state = h.new_zeros(b, len(self.lattice), 4, dtype=torch.float32)
-        bounds = mask.nonzero()
-        box_shape = (bounds.amax(0) - bounds.amin(0) + 1).tolist()
-        snapshot = h.new_zeros(b, self.P.shape[0] if self.arm == "a" else 0, *box_shape)
+        snapshot = h.new_zeros(b, self.P.shape[0] if self.arm == "a" else 0, *self.imprint_shape)
         snapshot_valid = torch.zeros(b, dtype=torch.bool, device=h.device)
         valid = torch.ones(b, len(self.lattice), dtype=torch.bool, device=h.device)
         nodes = self.lattice[None].expand(b, -1, -1)
@@ -256,12 +264,32 @@ class KineticBlockworldModel(ViTBlockworldModel):
             force = (self.training and prediction and target_seq is not None
                      and torch.rand(1).item() < teacher_forcing_ratio)
             frame = (target_seq[:, j] if force else input_seq[:, -1]) if prediction else input_seq[:, t]
-            args = (h, state, snapshot, snapshot_valid, frame, action, nodes, valid,
+            args = (h, state, frame, action, nodes, valid,
                     mask, prediction, force, return_latent_video and prediction)
             if self.checkpoint_steps and torch.is_grad_enabled():
-                h, state, snapshot, snapshot_valid, out, latent = checkpoint(self._step, *args, use_reentrant=False)
+                h, state, out, latent = checkpoint(self._step, *args, use_reentrant=False)
             else:
-                h, state, snapshot, snapshot_valid, out, latent = self._step(*args)
+                h, state, out, latent = self._step(*args)
+            if self.arm == "a" and not prediction:
+                if self.checkpoint_steps and torch.is_grad_enabled():
+                    current, box, support = checkpoint(self.observation_imprint, frame, mask, use_reentrant=False)
+                else:
+                    current, box, support = self.observation_imprint(frame, mask)
+                usable = snapshot_valid & (action != 0) & (action != 1)
+                if usable.any():
+                    ego = torch.stack(((action == 2).float(), torch.zeros_like(action).float()), -1)
+                    # Never checkpoint the measurement: kwm makes search,
+                    # clustering and lock decisions once under no_grad. Keep
+                    # its selected LK derivative and the learned scale's graph.
+                    measured = self.refiner(snapshot[usable], current[usable], state[usable],
+                                            self.lattice, ego[usable], box, support)
+                    state = state.clone()
+                    state[usable] = measured
+                # Post-turn imprint is valid for the next observation pair.
+                snapshot = current
+                snapshot_valid = torch.ones_like(snapshot_valid)
+            # Prediction freezes estimator state except coordinate changes in
+            # _move. Decoded frames never enter the estimator.
             if prediction:
                 outputs.append(out)
                 if return_latent_video:

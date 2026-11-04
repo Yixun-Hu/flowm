@@ -47,21 +47,22 @@ def test_analytic_projection():
 
 def test_region_mse_splits_and_accumulation():
     pred=torch.ones(1,2,3,128,128)
+    pred[:,1]=2
     target=torch.zeros_like(pred)
     meta=dict(block_pos_agent=torch.tensor([[[[5.,0.]],[[5.,0.]]]]),
               block_vel_agent=torch.zeros(1,2,1,2),block_speed=torch.tensor([[[.4],[.6]]]),
               block_valid=torch.ones(1,2,1,dtype=torch.bool))
     actions=torch.tensor([[0,4]])
     result=block_region_splits(pred,target,meta,actions)
-    assert result['block_mse']==1
-    assert result['block_mse_turn']==1 and result['block_mse_nonturn']==1
-    assert result['block_mse_speed_0.25_0.5']==1 and result['block_mse_speed_0.5_0.75']==1
+    assert result['block_mse']==2.5
+    assert result['block_mse_turn']==1 and result['block_mse_nonturn']==4
+    assert result['block_mse_speed_0.25_0.5']==1 and result['block_mse_speed_0.5_0.75']==4
     assert torch.isnan(result['block_mse_speed_0.75_1.0'])
     assert torch.isnan(block_region_mse(pred,target,torch.zeros(1,2,128,128,dtype=torch.bool)))
     metric=BlockRegionMetric()
     metric.update(pred,target,meta,actions)
     metric.update(pred*2,target,meta,actions)
-    assert metric.compute()['block_mse']==2.5
+    assert metric.compute()['block_mse']==6.25
     metric.reset()
     assert metric.pixels.count_nonzero()==0
 

@@ -21,6 +21,7 @@ def inputs(batch=1, context=4, prediction=3, size=32):
     z = torch.tensor([4, 0, 2]).repeat(batch, 1)[:, :prediction]
     metadata = dict(block_vel_agent=torch.rand(batch, context+prediction, 10, 2) - .5,
                     block_valid=torch.arange(10)[None,None,:].expand(batch, context+prediction, -1) < 6)
+    metadata['block_vel_object_incoming'] = metadata['block_vel_agent'].clone()
     return x, a, z, metadata
 
 
@@ -91,12 +92,14 @@ def test_turn_and_stream(arm):
     torch.testing.assert_close(left,right,rtol=0,atol=1e-5)
 
 
-def test_oracle_masked_slots_inert():
-    m=KineticBlockworldModel(arm='a_oracle',**SMALL).eval()
+@pytest.mark.parametrize('velocity,key', [('raw','block_vel_agent'),
+                                         ('incoming_object','block_vel_object_incoming')])
+def test_oracle_masked_slots_inert(velocity,key):
+    m=KineticBlockworldModel(arm='a_oracle',oracle_velocity=velocity,**SMALL).eval()
     x,a,z,meta=inputs()
     with torch.no_grad():
         first,h=m(x,a,z,metadata=meta,return_hidden=True)
-        meta['block_vel_agent'][~meta['block_valid']]=1234
+        meta[key][~meta['block_valid']]=1234
         second,h2=m(x,a,z,metadata=meta,return_hidden=True)
     torch.testing.assert_close(first,second,rtol=0,atol=0)
     torch.testing.assert_close(h,h2,rtol=0,atol=0)
@@ -104,7 +107,7 @@ def test_oracle_masked_slots_inert():
     assert m.last_nodes[:,7:].count_nonzero() == 0
 
 
-def test_prediction_freezes_estimator_and_turn_invalidates(monkeypatch):
+def test_prediction_freezes_estimator_and_retains_turn_snapshot(monkeypatch):
     m=KineticBlockworldModel(arm='a',checkpoint_steps=False,**SMALL)
     calls=[]
     original=m.refiner.forward
@@ -115,7 +118,22 @@ def test_prediction_freezes_estimator_and_turn_invalidates(monkeypatch):
     x,a,z,meta=inputs()
     a[:]=torch.tensor([4,0,4,4])
     m(x,a,z,metadata=meta)
-    assert len(calls)==1  # only pair 2->3, never the prediction frames
+    assert len(calls)==2  # pairs 1->2 and 2->3, never the prediction frames
+
+
+@pytest.mark.parametrize('turn_steps', [[], [1], [1,2,5]])
+def test_exactly_one_measurement_skipped_per_turn(monkeypatch,turn_steps):
+    m=KineticBlockworldModel(arm='a',checkpoint_steps=False,**SMALL)
+    calls=[]
+    original=m.refiner.forward
+    def measurement(*args,**kwargs):
+        calls.append(1)
+        return original(*args,**kwargs)
+    monkeypatch.setattr(m.refiner,'forward',measurement)
+    actions=torch.full((1,8),4)
+    for i,t in enumerate(turn_steps): actions[:,t]=i%2
+    m(torch.rand(1,8,3,32,32),actions,torch.tensor([[0,4,1]]))
+    assert 7-len(calls)==len(turn_steps)
 
 
 @pytest.mark.parametrize('arm',ARMS)
@@ -145,19 +163,21 @@ def test_c_released_parity_two_real_clips():
     baseline.load_state_dict({k.removeprefix('main_model.'):v for k,v in source.items()},strict=True)
     m.load_released(source,rebuild_mixing=False)
     for path in paths:
-        video=torch.from_numpy(VideoReader(str(path),ctx=cpu(),num_threads=1).get_batch(list(range(5))).asnumpy()).permute(0,3,1,2).float()/255
+        start=40
+        video=torch.from_numpy(VideoReader(str(path),ctx=cpu(),num_threads=1).get_batch(list(range(start,start+32))).asnumpy()).permute(0,3,1,2).float()/255
         actions=torch.load(path.with_name(path.stem.removesuffix('_rgb')+'_actions.pt'),weights_only=False,map_location='cpu')['actions']
-        actions=torch.as_tensor(actions[:4]).long()
-        actions=torch.cat((torch.tensor([4]),actions))[None]
+        actions=torch.as_tensor(actions[start-1:start+31]).long()[None]
+        assert ((actions==0)|(actions==1)).any()
         with torch.no_grad():
-            expected=baseline(video[None,:3],actions[:,:3],actions[:,3:],return_hidden=True)
-            actual=m(video[None,:3],actions[:,:3],actions[:,3:],return_hidden=True)
-        for p,q in zip(expected,actual): torch.testing.assert_close(p,q,rtol=0,atol=1e-6)
+            expected=baseline(video[None,:24],actions[:,:24],actions[:,24:],return_hidden=True)
+            actual=m(video[None,:24],actions[:,:24],actions[:,24:],return_hidden=True)
+        for p,q in zip(expected,actual): torch.testing.assert_close(p,q,rtol=0,atol=0)
 
 
-def test_lock_arithmetic_box_and_gradient(monkeypatch):
+@pytest.mark.parametrize('residual_mode', ['subtract','mask'])
+def test_lock_arithmetic_box_and_gradient(monkeypatch,residual_mode):
     import algorithms.mem_wm.backbones.kwm3d.kwm3d_models as module
-    m=KineticBlockworldModel(arm='a',**{**SMALL,'world_size':16})
+    m=KineticBlockworldModel(arm='a',residual_mode=residual_mode,**{**SMALL,'world_size':16})
     previous=torch.zeros(1,8,19,17)
     current=torch.ones_like(previous,requires_grad=True)
     state=torch.zeros(1,17,4)
@@ -171,7 +191,7 @@ def test_lock_arithmetic_box_and_gradient(monkeypatch):
     monkeypatch.setattr(module,'lock_measurement',measured)
     support=m._get_fov_mask(torch.device('cpu'))[7:26,16:33]
     updated=m.refiner(previous,current,state,m.lattice,torch.zeros(1,2),(7,16),support)
-    assert captured['box']==(7,16) and captured['static_residual']
+    assert captured['box']==(7,16) and captured['static_residual']==residual_mode
     assert torch.equal(captured['support_mask'],support)
     assert captured['sigma']==1 and captured['radius'] is None
     torch.testing.assert_close(updated[:,1:,:2],torch.full((1,16,2),.2/3))
@@ -195,7 +215,8 @@ def test_observation_imprint_has_no_memory_input():
 
 
 def test_oracle_incoming_object_option():
-    m=KineticBlockworldModel(arm='a_oracle',oracle_velocity='incoming_object',**SMALL)
+    m=KineticBlockworldModel(arm='a_oracle',**SMALL)
+    assert m.oracle_velocity == 'incoming_object'
     _,_,_,meta=inputs()
     meta['block_vel_object_incoming']=torch.full_like(meta['block_vel_agent'],.25)
     nodes,valid=m._oracle(meta,2,torch.device('cpu'))
@@ -211,3 +232,27 @@ def test_map_conv_identity(conv):
     m=KineticBlockworldModel(arm='b',map_conv=conv,**SMALL)
     x=torch.randn(1,9,9,9,32)
     torch.testing.assert_close(m._mix(x),x,rtol=0,atol=0)
+
+
+@pytest.mark.parametrize('residual_mode',['subtract','mask'])
+def test_measurement_runs_once_outside_checkpoint_with_diagnostics(monkeypatch,residual_mode):
+    import algorithms.mem_wm.backbones.kwm3d.kwm3d_models as module
+    m=KineticBlockworldModel(arm='a',residual_mode=residual_mode,**{**SMALL,'world_size':16})
+    original=module.lock_measurement
+    calls=[]
+    def measured(*args,**kwargs):
+        delta,evidence,locked,diagnostics=original(*args,return_diagnostics=True,**kwargs)
+        assert kwargs['static_residual']==residual_mode
+        assert diagnostics['evidence_before_modes'].shape==evidence.shape==(1,17)
+        assert diagnostics['estimate'].shape==(1,17,2)
+        assert all(not value.requires_grad and torch.isfinite(value).all() for value in diagnostics.values())
+        calls.append((delta.detach().clone(),evidence.clone(),locked.clone()))
+        return delta,evidence,locked
+    monkeypatch.setattr(module,'lock_measurement',measured)
+    x,a,z,meta=inputs()
+    y=m(x,a,z,metadata=meta)
+    assert len(calls)==3
+    y.square().mean().backward()
+    assert len(calls)==3  # backward must reuse choices instead of rerunning search
+    assert m.refiner.n_s.grad is not None
+    assert m.map_processor.patch.proj.weight.grad.norm()>0

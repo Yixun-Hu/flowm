@@ -67,6 +67,38 @@ def test_block_padding(tmp_path):
     assert not result['block_valid'][1:].any()
 
 
+@pytest.mark.parametrize('skip',[1,2])
+def test_missing_block_file_and_optional_fields_collate(tmp_path,skip):
+    ds=BlockWorldVideoDataset.__new__(BlockWorldVideoDataset)
+    ds.n_frames=7;ds.frame_skip=skip
+    pts=torch.arange(5)
+    def load(name):
+        return ds.load_block_metadata(dict(video_paths=tmp_path/f'{name}_rgb.mp4',video_pts=pts),3,5)
+    missing=load('missing')
+    assert all(value.count_nonzero()==0 for value in missing.values())
+    pos=torch.ones(5,2,2)
+    info=dict(num_blocks=2,block_pos_agent=pos,block_vel_agent=pos)
+    torch.save(info,tmp_path/'legacy_block_info.pt')
+    legacy=load('legacy')
+    info.update(block_speed=torch.ones(5,2),block_vel_world=torch.ones(5,2,3),agent_dir=torch.zeros(5))
+    torch.save(info,tmp_path/'full_block_info.pt')
+    full=load('full')
+    # Exercise both collation orders; key mismatches can otherwise be hidden.
+    for samples in ([full,legacy,missing],[missing,legacy,full]):
+        batch=default_collate(samples)
+        assert batch['block_pos_agent'].shape==(3,len(range(0,7,skip)),10,2)
+    assert not missing['block_valid'].any()
+    assert legacy['block_valid'].any() and not legacy['block_incoming_valid'].any()
+    assert torch.equal(full['block_valid'],full['block_incoming_valid'])
+    from algorithms.mem_wm.backbones.kwm3d import KineticBlockworldModel
+    from test_models import SMALL
+    model=KineticBlockworldModel(arm='a_oracle',**SMALL)
+    nodes,valid=model._oracle(default_collate([missing]),0,torch.device('cpu'))
+    assert nodes.count_nonzero()==0 and valid.sum()==1  # static channel only
+    with pytest.raises(ValueError,match='block_vel_object_incoming'):
+        model._oracle(default_collate([legacy]),0,torch.device('cpu'))
+
+
 def test_corrected_oracle_incoming_alignment():
     paths=sorted((ROOT/'data/blockworld/k3d_v_validation').glob('*/*_rgb.mp4'))
     if not paths: pytest.skip('blockworld data absent')

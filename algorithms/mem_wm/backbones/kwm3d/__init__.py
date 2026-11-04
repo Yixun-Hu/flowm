@@ -14,7 +14,7 @@ def create_kwm3d_model(backbone_cfg):
         shape = ast.literal_eval(shape)
     options = {key: cfg[key] for key in
                ("arm", "lattice", "map_conv", "write", "checkpoint_steps", "imprint_k",
-                "sigma", "step_clip", "s_init", "oracle_velocity") if key in cfg}
+                "sigma", "step_clip", "s_init", "oracle_velocity", "residual_mode") if key in cfg}
     return KineticBlockworldModel(
         input_shape=tuple(shape), world_size=cfg.get("world_size", 16),
         embed_dim=cfg.get("hidden_channels", 256), img_patch_size=cfg.get("patch_size", 16),

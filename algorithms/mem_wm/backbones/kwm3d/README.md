@@ -24,21 +24,19 @@ the original FloWM initialization unless explicitly loading screening weights.
 ## Dependency and source reuse
 
 The tested editable dependency is `/home/yixunhu/codespace/kwm-wt-k3d`, branch
-`k3d-base`, commit **0190d250f6d2c6a8bc0ebd77e92bb90ad3301083**. It supplies
+`k3d-base`, commit **2e73903d7ef5e6268cf6bca3a9703a3b9971ccf9**. It supplies
 `stream`, `named_nodes`, `rotation_perms`, `rot_vec`, `C4SymmetricDepthwise`,
 `oracle_nodes_from`, `_fixed_projection`, `LockState`, and `lock_measurement`.
 No KWM or FloWM source has been vendored. Keep this dependency pinned when
 reproducing the numbers; the private lock adapter depends on this version.
 
-The fork exposes the masked measurement primitive but has no injectable
-measurement hook in `AdaptiveNodeCell._forward_lock`. `_LockArithmetic` reuses
-that installed function's code object with a private globals dictionary, binding
-only `lock_measurement` to the cone/box options. It does **not** modify module
-globals or copy the function's source. A one-cell dummy feature bank bypasses
-its unrelated CNN recurrence; FloWM owns the actual feature recurrence.
-`.scratch/kwm_patch.diff` proposes a small upstream `_measure_lock` hook. Once
-that patch is adopted, replace the temporary binding adapter with the hook.
-The external checkout was not modified.
+`_LockArithmetic` overrides the installed `AdaptiveNodeCell._measure_lock`
+hook to pass the cone, box and residual options, and calls the inherited
+`_forward_lock` for its exact update arithmetic. A one-cell dummy feature bank
+bypasses its unrelated CNN recurrence; FloWM owns the actual feature recurrence.
+The hook first appeared in `94803f5`; the pinned HEAD adds mask residuals and
+all-node diagnostics. No module globals, function bindings or external source
+files are modified.
 
 ## Writes, turns and estimation
 
@@ -74,13 +72,17 @@ pooled write on a zero map, projected with fixed `_fixed_projection(C,K)`
 algebraically equivalent to V identical zero nodes for pooled attention, and
 avoids retaining redundant lift activations. Memory features do not enter this
 estimator. `lock_measurement` uses `box=(7,16)`, the exact cone support,
-`static_residual=True`, `sigma=1.0` (configurable) and `radius=None`.
+`static_residual=residual_mode`, `sigma=1.0` (configurable) and `radius=None`.
+`residual_mode: mask` is the default: ego-only change weights the plain matching
+pair. `residual_mode: subtract` retains the old dipole residual as an ablation.
+The fork's diagnostics expose estimates, evidence before mode selection and
+lock bits for all nodes. Both modes are exercised through the backbone hook.
 
 The installed cell supplies the exact fp32 lock update: cumulative evidence,
 evidence-weighted gain, learned scalar `s` (initially 1), clipped step (default
 0.3), offset bound 0.75, and static-node pinning. Turn steps supply no velocity
-measurement and invalidate the snapshot; the following observation seeds a new
-pair, so the first valid measurement is one observation later. During prediction,
+measurement across the turn, but retain their post-turn imprint as the next
+snapshot: pair (t−1,t) is skipped and pair (t,t+1) remains valid. During prediction,
 rho/evidence/lock/snapshot receive no measurements or writes. Turns still change
 rho's coordinates and node labels. Decoded frames feed the feature recurrence.
 
@@ -88,8 +90,21 @@ Every arm uses the same `_step` call through non-reentrant per-step checkpointin
 when gradients are enabled and `checkpoint_steps: true`. The teacher-forcing
 coin is drawn outside this call. Evaluation under `no_grad()` avoids checkpoint
 bookkeeping. The decoder takes max-over-valid-V cone tokens plus map positions.
+A's observation lift is checkpointed separately; the measurement and lock update
+run outside checkpointing. KWM evaluates search, clustering, gates and lock bits
+once under `no_grad`, so backward cannot choose different discrete decisions.
+The selected LK displacement derivative and learned scale `s` still retain their
+graphs: putting the entire measurement under `no_grad` would remove an existing
+gradient. This keeps a small estimator graph per measured pair in addition to
+the saved feature maps. Tests assert no measurement calls during backward.
 
-## Oracle metadata convention: maintainer decision needed
+Cone bounds are cached at construction. The flattened search-mask key is also
+prepared there, and passed when the dependency exposes `support_mask_key`.
+Pinned KWM `2e73903` does **not** expose that argument, so its `LocalSearch`
+still copies the mask to CPU per measurement. The minimal upstream proposal is
+`.scratch/kwm_mask_key.diff`; it was not applied to the read-only dependency.
+
+## Oracle metadata convention and maintainer decision
 
 **The current generator contradicts the brief's interpretation of
 `block_vel_agent`.** `generate_videos.py` lines 1730–1755 compute outgoing
@@ -98,10 +113,7 @@ bookkeeping. The decoder takes max-over-valid-V cone tokens plus map positions.
 mode double-subtracts ego translation and is one transition out of alignment for
 an incoming-step recurrence. This matters especially at turns and bounces.
 
-The default **`oracle_velocity: raw`** preserves the explicitly requested
-`block_vel_agent[t]` behavior. It should not be interpreted as a physically
-validated oracle ceiling on the current generated data. An additional,
-explicit **`oracle_velocity: incoming_object`** mode uses
+The Python and configuration default **`oracle_velocity: incoming_object`** uses
 `block_vel_world[t-1]`, expressed using destination heading `agent_dir[t]`, and
 lets `stream` subtract ego motion once. The opt-in dataset loader supplies this
 as `block_vel_object_incoming`; the requested raw metadata fields stay unchanged.
@@ -118,8 +130,13 @@ diagnostic only. The stage 1 gate reports both conventions as `literal` and `int
 `block_vel_agent [T,10,2]` and boolean `block_valid [T,10]` inside `metadata`.
 The loader follows the actual video indices, clip start, purpose-dependent
 `max_frames`/`n_frames`, padding and frame skip; temporal padding is invalid.
-It also passes generator `block_speed` and the corrected incoming velocities
-when available. Default PyTorch collation produces `[B,T,...]` tensors.
+It also supplies `block_speed`, corrected incoming velocities and
+`block_incoming_valid` with fixed keys. Missing block files produce all-zero
+tensors with `block_valid=False`, so legacy and K3D samples collate together.
+Older block files lacking speed use the prior velocity-norm fallback. Missing
+incoming velocities remain zero with `block_incoming_valid=False`; the oracle
+rejects such slots if `block_valid=True`, preserving the missing-data error.
+Default PyTorch collation produces `[B,T,...]` tensors.
 The new training split is registered without caching an absent split's empty
 index. Opt-in integer-action padding/skipping avoids two pre-existing shape
 errors; the disabled path retains its behavior. Dataset alignment supports
@@ -184,8 +201,7 @@ From the repository root:
 export CUDA_VISIBLE_DEVICES="" OMP_NUM_THREADS=8 MKL_NUM_THREADS=8 WANDB_MODE=offline
 export PYTHONDONTWRITEBYTECODE=1
 source algorithms/mem_wm/backbones/kwm3d/.scratch/env.sh
-/home/yixunhu/miniconda3/envs/flowm/bin/python -m pytest tests/kwm3d -q \
-  -o cache_dir=algorithms/mem_wm/backbones/kwm3d/.scratch/pytest-cache
+/home/yixunhu/miniconda3/envs/flowm/bin/python -m pytest tests/kwm3d -q -p no:cacheprovider
 /home/yixunhu/miniconda3/envs/flowm/bin/python scripts/kwm3d_bench.py \
   --device cpu --arm a --steps 3 --batch 1
 /home/yixunhu/miniconda3/envs/flowm/bin/python scripts/kwm3d_check_masks.py
@@ -212,43 +228,57 @@ runs, including its observation-only lift.
 
 | Arm | Checkpoint off: s/step | Peak RSS MiB | Checkpoint on: s/step | Peak RSS MiB |
 | --- | ---: | ---: | ---: | ---: |
-| c | 4.047 | 3156 | 4.458 | 2171 |
-| c_pw | 1.599 | 2281 | 2.481 | 1741 |
-| a_oracle | 1.986 | 2900 | 2.925 | 2196 |
-| a | 2.989 | 4282 | 4.773 | 2861 |
-| b | 1.809 | 2736 | 2.591 | 1991 |
+| c | 3.350 | 3161 | 4.077 | 2089 |
+| c_pw | 1.589 | 2274 | 2.179 | 1684 |
+| a_oracle | 2.069 | 2866 | 2.672 | 2283 |
+| a | 3.800 | 4550 | 4.457 | 2941 |
+| b | 1.861 | 2688 | 2.592 | 2055 |
 
-Raw timings are in `.scratch/bench.log`. GPU memory, GPU timing and campaign
+Raw fix-pass timings are in `.scratch/fixpass-bench.log`. GPU memory, GPU timing and campaign
 budgets remain unmeasured. In particular these batch-1, 15-frame CPU figures
 cannot establish feasibility of batch-8, 90/140-frame GPU backpropagation.
 
+**Expected GPU memory, to be measured:** non-reentrant per-step checkpointing
+saves the input map, approximately **1.1 MB × V per sample-step**
+(`33 × 33 × 256 × 4` bytes per node). For A at V=17 this is 19.0 MB per
+sample-step: batch 8 retains approximately **21 GB at 140 steps** or
+**13.6 GB at 90 steps**, before the recompute peak of one step, parameters,
+gradients and other allocations. These are decimal MB/GB projections, not
+measured GPU allocations. The benchmark reports exact map bytes and both
+batch-8 projections for each arm.
+
 ## Verification, deviations and remaining limitations
 
-**40 tests passed, no skips, in 35.16 seconds** on CPU. Only the existing
+**53 tests passed, no skips, in 40.90 seconds** on CPU. Only the existing
 `pkg_resources` and timm import deprecation warnings were emitted.
 
 Tests cover every arm's reduced forward/backward, C vs released FloWM on two
-real clips (3 context + 2 predictions each, tolerance 1e-6), pooled token counts,
+real clips (24 context + 8 predictions each, exact outputs and hidden states),
+C training-mode parity over 24+8 frames with turns, teacher forcing 0.5 and
+checkpointing (exact outputs and gradients), pooled token counts,
 33×33 turn inverses and spectral commutation (1e-5), checkpoint gradient agreement
 (1e-5 relative, width 32, depth 1, 4+3 frames), invalid oracle slots, strict
 released loading, observation-only projection, nonzero lock-update derivatives,
-static pinning, turn snapshot invalidation, configuration/factory integration,
+static pinning, exactly one skipped measurement per turn, both residual modes,
+integer transport versus FloWM (2e-6) and exact turns, real-clip oracle kinematics
+(below 1e-5 cells, zero to four decimal places; spectral centroids below 5e-4),
+configuration/factory integration,
 metadata signature gating, analytic geometry, real mask IoU, dataset alignment,
-padding, skipping and collation. Real-data/checkpoint tests skip only when the
+padding, skipping and mixed missing-file collation. Real-data/checkpoint tests skip only when the
 required artifacts are absent. Validation wiring is tested without launching a
 Lightning trainer or downloading metric networks.
 
 Differences and extensions relative to the brief/design:
 
-1. The discovered generator velocity convention is retained literally by
-   default and a corrected oracle option is added; see the warning above.
-   This is an unresolved experimental choice, not evidence for an oracle ceiling.
+1. The maintainer-selected incoming object velocity is the oracle default.
+   The generator's raw camera-relative outgoing velocity remains an explicit
+   diagnostic option, not a physically validated oracle ceiling.
 2. Scalar turns specialize `rot_state` semantics, because the installed function
-   rotates orientation channels. The rectangular observation snapshot is
-   invalidated, not rotated into a fictitious full cone. Frozen prediction
+   rotates orientation channels. The pre-turn snapshot is replaced by the
+   turn-step post-turn imprint without measuring across the turn. Frozen prediction
    snapshots are never read again for measurement.
-3. A temporary private-function binding plus a proposed external patch reuses
-   exact lock arithmetic without copying code or modifying the read-only fork.
+3. The installed `_measure_lock` hook reuses exact lock arithmetic without
+   copying code or modifying the read-only fork.
 4. Implementation proceeded before stage-1 kill-test completion as explicitly
    requested in this task; it does not supersede D5's decision gate for training.
 5. Corrected incoming velocities and object speed are additional metadata fields.
@@ -265,12 +295,11 @@ grey blocks and are sensitive to compression/lighting; map transport uses a
 33×33 torus; the lift/decoder with absolute positions are not turn-equivariant
 (the C4 guarantee applies to map transport + symmetric convolution); rho is
 componentwise bounded, with no explicit collision or bounce model; prediction
-freezes node learning even through bounces; Python control flow/private KWM
-binding has not been verified under `torch.compile`, TorchScript or export.
+freezes node learning even through bounces; Python control flow/the KWM hook
+has not been verified under `torch.compile`, TorchScript or export.
 The optional plain convolution intentionally relinquishes C4 equivariance.
 
-Maintainer decisions: choose raw versus corrected incoming oracle convention
-before interpreting A-oracle results; review/adopt the upstream measurement
-hook and pin its replacement revision; await the independent stage-1 kill tests;
+Maintainer decision (2026-11-04): use `incoming_object` for A-oracle and retain
+`raw` for diagnostics. Remaining decisions: await the independent stage-1 kill tests;
 measure GPU memory/time before assigning budgets; verify training split
 availability and select a trained arm checkpoint for inference.
