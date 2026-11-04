@@ -1,0 +1,9 @@
+# @package _global_
+# Append after an arm shortcode; evaluate separately with k3d_v_70ctx.
+dataset:
+  max_frames: 90
+  n_frames: 90
+algorithm:
+  tasks:
+    prediction:
+      context_frames: 50

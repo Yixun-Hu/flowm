@@ -1,0 +1,24 @@
+# @package _global_
+defaults:
+  - /shortcode/exp/blockworld/kwm3d/base
+  - _self_
+# Set load=/path/to/kwm3d.ckpt and algorithm.backbone.arm to its trained arm.
+algorithm:
+  tasks:
+    prediction:
+      context_frames: 70
+    reconstruction:
+      enabled: false
+  logging:
+    max_num_videos: 8
+    metrics: [fvd, lpips, mse, psnr, ssim, block_mse]
+dataset:
+  max_frames: 140
+  n_frames: 140
+  num_default_clips: 1000
+experiment:
+  tasks: [validation]
+  validation:
+    batch_size: 8
+    splits_included: [k3d_v_validation]
+    sample_during_training: true

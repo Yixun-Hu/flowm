@@ -1,4 +1,5 @@
 from typing import Optional, Dict, Tuple
+import inspect
 from omegaconf import DictConfig
 import torch
 from torch import Tensor
@@ -75,6 +76,7 @@ class FloWMVideo(BaseWMMixin, BasePytorchAlgo):
         self.main_model = create_main_model(
             backbone_cfg=backbone_cfg
         )
+        self._backbone_accepts_metadata = "metadata" in inspect.signature(self.main_model.forward).parameters
 
         if self.cfg.load_model_state:
             if not self.cfg.model_state_key:
@@ -92,6 +94,8 @@ class FloWMVideo(BaseWMMixin, BasePytorchAlgo):
                 missing_keys, unexpected_keys = self.main_model.load_state_dict(model_dict, strict = True)
             elif load_model == "partial":
                 missing_keys, unexpected_keys = self.main_model.load_state_dict(model_dict, strict = False)
+            elif load_model == "released":
+                missing_keys, unexpected_keys = self.main_model.load_released(model_dict, rebuild_mixing=True)
             else:
                 raise ValueError(f"Invalid load_model: {load_model}")
             
@@ -104,15 +108,22 @@ class FloWMVideo(BaseWMMixin, BasePytorchAlgo):
             
         # Build metrics
         self._build_metrics()
+        if "block_mse" in self.logging_cfg.metrics:
+            from algorithms.mem_wm.backbones.kwm3d.metrics import BlockRegionMetric
+            self.block_region_metric = BlockRegionMetric()
+
+    def _metadata_kwargs(self, metadata):
+        return {"metadata": metadata} if self._backbone_accepts_metadata else {}
 
     def training_step(self, batch, batch_idx, dataloader_idx = 0, namespace="training") -> STEP_OUTPUT:
         """
         Training step
         """
         criterion = nn.MSELoss()
-        input_seq, input_actions, target_actions, target_seq, gt_videos, _ = batch
+        input_seq, input_actions, target_actions, target_seq, gt_videos, metadata = batch
 
-        preds = self.main_model(input_seq, input_actions, target_actions, target_seq=target_seq, teacher_forcing_ratio=self.cfg.teacher_forcing)
+        preds = self.main_model(input_seq, input_actions, target_actions, target_seq=target_seq,
+                                teacher_forcing_ratio=self.cfg.teacher_forcing, **self._metadata_kwargs(metadata))
 
         loss = criterion(preds, target_seq)
 
@@ -231,9 +242,24 @@ class FloWMVideo(BaseWMMixin, BasePytorchAlgo):
                 if v.shape[2] != 3:
                     all_videos[k] = v.repeat(1, 1, 3, 1, 1)
             self._update_metrics(all_videos, dataloader_idx=dataloader_idx)
+            if hasattr(self, "block_region_metric"):
+                start = self.n_context_frames
+                end = self.logging_cfg.n_metrics_frames or all_videos["prediction"].shape[1]
+                meta = {k: v[:, start:end] for k, v in video_metadata.items() if k.startswith("block_")}
+                # Match VideoMetric's [0,1] convention without changing its inputs.
+                pred = torch.nan_to_num(all_videos["prediction"][:, start:end]).clamp(0, 1)
+                target = torch.nan_to_num(all_videos["gt"][:, start:end]).clamp(0, 1)
+                self.block_region_metric.update(pred, target, meta, batch[2][:, :pred.shape[1]])
             self._log_videos(all_videos, namespace, dataloader_idx=dataloader_idx, video_metadata=video_metadata)
 
         return
+
+    def on_validation_epoch_end(self, namespace="validation"):
+        if hasattr(self, "block_region_metric") and self.block_region_metric._update_called:
+            values = self.block_region_metric.compute()
+            self.log_dict({f"{namespace}/prediction/{k}": v for k, v in values.items()}, sync_dist=True)
+            self.block_region_metric.reset()
+        super().on_validation_epoch_end(namespace=namespace)
 
     # ---------------------------------------------------------------------
     # Sampling
@@ -253,7 +279,8 @@ class FloWMVideo(BaseWMMixin, BasePytorchAlgo):
         target_actions = target_actions.to(self.dtype)
         all_videos: Dict[str, Tensor] = {"gt": gt_videos}
         preds = self.main_model(
-            input_seq, input_actions, target_actions, return_latent_video=True
+            input_seq, input_actions, target_actions, return_latent_video=True,
+            **self._metadata_kwargs(video_metadata)
         )
         # all black baseline
         # preds = torch.zeros_like(target_seq)

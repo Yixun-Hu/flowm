@@ -9,11 +9,14 @@ __all__ = ["create_main_model"]
 def create_main_model(
         backbone_cfg: DictConfig,
     ):
-    AVAILABLE_MODELS = ["cogv", "hybrid_ssm", "hybrid_ssm_official", "flowm", "rssm"]
+    AVAILABLE_MODELS = ["cogv", "hybrid_ssm", "hybrid_ssm_official", "flowm", "rssm", "kwm3d"]
     if backbone_cfg.model_type in ["cogv", "hybrid_ssm", "hybrid_ssm_official"]:
         return create_cogv_like_model(**backbone_cfg)
     elif backbone_cfg.model_type in ["fernn", "flow_vit"]:
         return create_flowm_model(backbone_cfg=backbone_cfg)
+    elif backbone_cfg.model_type == "kwm3d":
+        from .kwm3d import create_kwm3d_model
+        return create_kwm3d_model(backbone_cfg)
     elif backbone_cfg.model_type == "rssm":
         return create_rssm_model(backbone_cfg=backbone_cfg)
     else:

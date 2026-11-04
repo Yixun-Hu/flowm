@@ -95,7 +95,7 @@ class BlockWorldVideoDataset(BaseAdvancedVideoDataset):
         # Kinetic 3D (k3d) splits generated with the Miniworld-k3d fork; add a split here only once its data
         # exists, because build_metadata() caches an empty index for a missing split.
         "k3d_int_validation", "k3d_int_validation_sw200", "k3d_int_validation_nv200",
-        "k3d_v_validation", "k3d_v_test", "k3d_a_validation", "k3d_a_test",
+        "k3d_v_training", "k3d_v_validation", "k3d_v_test", "k3d_a_validation", "k3d_a_test",
         "k3d_null_noblocks", "k3d_null_static",  # 50 CPU-rendered clips each, stage 1 background null
         ]
 
@@ -125,6 +125,10 @@ class BlockWorldVideoDataset(BaseAdvancedVideoDataset):
             return
         # Only index RGB videos (exclude depth videos like *_depth.mp4)
         root = self.save_dir / split
+        if split == "k3d_v_training" and not root.is_dir():
+            # Training generation may follow validation; never cache an empty
+            # index now that would hide newly generated training clips later.
+            return
         video_paths = [
             p for p in sorted(
                 (Path(p) for p in glob.glob(str(root / "**/*.mp4"), recursive=True)),
@@ -212,6 +216,52 @@ class BlockWorldVideoDataset(BaseAdvancedVideoDataset):
         meta = self._load_pt(video_path)
         return {k: v for k, v in meta.items() if k not in ("actions", "agent_pos", "delta_dir", "delta_xz")}
 
+    def load_block_metadata(self, video_metadata, start_frame, end_frame):
+        """Frame-aligned, ten-slot block state; padding has valid=False.
+
+        Keep raw generator velocities unchanged. Object speed, when present,
+        is separate because block_vel_agent includes relative camera motion.
+        """
+        video_path = Path(video_metadata["video_paths"])
+        path = video_path.with_name(video_path.stem.removesuffix("_rgb") + "_block_info.pt")
+        info = torch.load(path, map_location="cpu", weights_only=False)
+        indices = torch.as_tensor(video_metadata["video_pts"][start_frame:end_frame], dtype=torch.long)
+        positions = torch.as_tensor(info["block_pos_agent"])
+        velocities = torch.as_tensor(info["block_vel_agent"])
+        count = int(info["num_blocks"])
+        if not 0 <= count <= 10 or positions.shape != velocities.shape or positions.shape[1:] != (count, 2):
+            raise ValueError(f"Invalid block state shape/count in {path}")
+        if len(indices) and int(indices.max()) >= len(positions):
+            raise ValueError(f"Block metadata is shorter than the returned video: {path}")
+        length = len(indices)
+        result = {}
+        for name, source in (("block_pos_agent", positions), ("block_vel_agent", velocities)):
+            out = torch.zeros(self.n_frames, 10, 2, dtype=torch.float32)
+            out[:length, :count] = source[indices].float()
+            result[name] = out[::self.frame_skip]
+        valid = torch.zeros(self.n_frames, 10, dtype=torch.bool)
+        valid[:length, :count] = True
+        result["block_valid"] = valid[::self.frame_skip]
+        if "block_speed" in info:
+            speed = torch.zeros(self.n_frames, 10)
+            speed[:length, :count] = torch.as_tensor(info["block_speed"])[indices]
+            result["block_speed"] = speed[::self.frame_skip]
+        if "block_vel_world" in info and "agent_dir" in info:
+            # Optional corrected oracle: the incoming object displacement, in
+            # the destination frame, before ego motion is subtracted by stream.
+            # Keep block_vel_agent above byte-for-byte equal to the raw source.
+            previous = (indices - 1).clamp_min(0)
+            world = torch.as_tensor(info["block_vel_world"])[previous][..., (0, 2)].float()
+            heading = torch.as_tensor(info["agent_dir"])[indices].float()[:, None]
+            c, s = heading.cos(), heading.sin()
+            vx, vz = world.unbind(-1)
+            incoming = torch.stack((c * vx - s * vz, s * vx + c * vz), -1)
+            incoming[indices == 0] = 0
+            out = torch.zeros(self.n_frames, 10, 2)
+            out[:length, :count] = incoming
+            result["block_vel_object_incoming"] = out[::self.frame_skip]
+        return result
+
     def load_depth(self, video_metadata: Dict[str, Any], start_frame: int, end_frame: Optional[int] = None) -> Optional[torch.Tensor]:
         """
         Load depth frames from the corresponding *_depth.mp4.
@@ -285,7 +335,8 @@ class BlockWorldVideoDataset(BaseAdvancedVideoDataset):
                 video = torch.nn.functional.pad(video, (0, 0, 0, 0, 0, 0, 0, pad_len)).contiguous()
             # pad cond: (T, D)
             if cond is not None:
-                cond = torch.nn.functional.pad(cond, (0, 0, 0, pad_len)).contiguous()
+                padding = (0, pad_len) if getattr(self.cfg, "load_block_info", False) and cond.ndim == 1 else (0, 0, 0, pad_len)
+                cond = torch.nn.functional.pad(cond, padding).contiguous()
             if depth is not None:
                 depth = torch.nn.functional.pad(depth, (0, 0, 0, 0, 0, 0, 0, pad_len)).contiguous()
             # pad latents: (T, C, H, W)
@@ -311,7 +362,9 @@ class BlockWorldVideoDataset(BaseAdvancedVideoDataset):
 
         # Process external condition
         if cond is not None:
-            cond = self._process_external_cond(cond)
+            if not (getattr(self.cfg, "load_block_info", False) and self.frame_skip > 1
+                    and self.cond_loading_style == "action_int"):
+                cond = self._process_external_cond(cond)
 
         # Transform video and depth
         if video is not None:
@@ -355,6 +408,8 @@ class BlockWorldVideoDataset(BaseAdvancedVideoDataset):
             "path": str(video_metadata["video_paths"]),
             "clip": [start_frame, end_frame],
         }
+        if getattr(self.cfg, "load_block_info", False):
+            output["metadata"].update(self.load_block_metadata(video_metadata, start_frame, end_frame))
 
         # Handle preprocessing experiments
         if self.is_latent_preprocessing_expt:

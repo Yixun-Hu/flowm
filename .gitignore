@@ -60,6 +60,8 @@ src/*
 *.tar.lzma
 *.tar.lzma
 scripts/*
+!scripts/kwm3d_bench.py
+!scripts/kwm3d_check_masks.py
 code
 *.sh
 *.ply

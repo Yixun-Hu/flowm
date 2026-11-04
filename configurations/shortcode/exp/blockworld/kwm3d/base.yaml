@@ -1,0 +1,31 @@
+# @package _global_
+defaults:
+  - /shortcode/exp/blockworld/flowm/base
+  - override /algorithm: flowm_video
+  - override /algorithm/backbone: kwm3d
+  - _self_
+
+dataset:
+  load_block_info: true
+  external_cond_dim: 5
+  frame_skip: 1
+  max_frames: 140
+  n_frames: 140
+
+algorithm:
+  teacher_forcing: 0.125
+  backbone:
+    checkpoint_steps: true
+  tasks:
+    prediction:
+      context_frames: 50
+  logging:
+    metrics: [mse, psnr, block_mse]
+
+experiment:
+  training:
+    batch_size: 8
+    splits_included: [k3d_v_training]
+  validation:
+    batch_size: 8
+    splits_included: [k3d_v_validation]

@@ -18,7 +18,9 @@ class MetricMixin:
         if len(self.tasks) == 0:
             return
         registry = SharedVideoMetricModelRegistry()
-        metric_types = self.logging_cfg.metrics
+        # Blockworld's geometry metric needs metadata and is managed by
+        # FloWMVideo; the existing image/video metrics receive the same inputs.
+        metric_types = [m for m in self.logging_cfg.metrics if m != "block_mse"]
         if self.cfg.training.strategy == "fsdp":
             rank_zero_print(bold_red("Using FSDP, metrics like FVD, IS, REAL IS is not compatible, because they use torch_script."))
             metric_types.remove("fvd") if "fvd" in metric_types else None
@@ -102,4 +104,3 @@ class MetricMixin:
             if self.logging_cfg.n_metrics_frames is not None:
                 context_mask = context_mask[: self.logging_cfg.n_metrics_frames]
             metric(videos, gt_videos, context_mask=context_mask)
-  

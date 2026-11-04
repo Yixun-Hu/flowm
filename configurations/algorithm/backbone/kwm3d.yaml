@@ -1,0 +1,25 @@
+# @package algorithm.backbone
+model_type: kwm3d
+name: kwm3d
+arm: a
+lattice: null # A=v17 (v9 allowed), B=v9, C/C-pw=v5, oracle=11 object slots
+map_conv: c4 # kinetic arms: c4 or plain depthwise 3x3
+write: auto # C=per_node; all other arms=pooled
+checkpoint_steps: true
+frame_skip: ${dataset.frame_skip}
+world_size: 16
+input_shape: (${.input_channels}, ${dataset.resolution[1]}, ${dataset.resolution[0]})
+input_channels: 3
+hidden_channels: 256
+patch_size: 16
+decoder_depth: 6
+num_heads: 8
+map_proc_encoder_depth: 6
+fov_deg: 60.0
+imprint_k: 8
+sigma: 1.0
+step_clip: 0.3
+s_init: 1.0
+# Literal brief behavior. See README: the current generator's raw field is
+# outgoing and ego-relative. incoming_object corrects both conventions.
+oracle_velocity: raw

@@ -1,0 +1,7 @@
+# @package _global_
+defaults:
+  - /shortcode/exp/blockworld/kwm3d/base
+  - _self_
+algorithm:
+  backbone:
+    arm: c_pw

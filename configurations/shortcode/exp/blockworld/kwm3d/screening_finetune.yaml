@@ -1,0 +1,14 @@
+# @package _global_
+# Append after an arm shortcode. Fresh optimizer; common released lift weights.
+defaults:
+  - /shortcode/exp/blockworld/kwm3d/train/pilot_50_40
+  - _self_
+load: null
+algorithm:
+  load_model_state: downloaded_checkpoints/hf_models/blockworld-models/blockworld/dynamic/flowm/v2_dynamic.ckpt
+  model_state_key: state_dict
+  load_model_state_mode: released
+experiment:
+  training:
+    max_steps: 5000
+    batch_size: 8
