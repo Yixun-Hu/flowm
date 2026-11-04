@@ -1,6 +1,4 @@
 """Kinetic FloWM-3D, importing both FloWM modules and KWM primitives."""
-from functools import partial
-from types import FunctionType
 
 import torch
 from torch import nn
@@ -23,11 +21,10 @@ ARMS = ("c", "c_pw", "a_oracle", "a", "b")
 class _LockArithmetic(AdaptiveNodeCell):
     """Reuse the installed cell's exact update arithmetic, without its CNN lift.
 
-    The installed fork has no measurement-options hook in _forward_lock. Bind
-    its existing function to a private globals dict with a box-aware measurement
-    callable. This neither copies source nor mutates kwm's module globals. The
-    proposed upstream hook is in .scratch/kwm_patch.diff. A one-cell dummy feature
-    bank makes the cell's otherwise unused feature transport negligible.
+    kwm (k3d-base, 94803f5) routes the measurement through the overridable
+    `_measure_lock` hook; this subclass passes the cone box, support mask and
+    residual options there. A one-cell dummy feature bank makes the cell's
+    otherwise unused feature transport negligible.
     """
     def __init__(self, world, sigma, step_clip, s_init):
         nn.Module.__init__(self)
@@ -44,16 +41,15 @@ class _LockArithmetic(AdaptiveNodeCell):
     def feature_update(self, u, feat, return_prelift=False):
         return feat
 
+    def _measure_lock(self, *args, **kwargs):
+        return lock_measurement(*args, box=self._box, support_mask=self._support,
+                                sigma=self.sigma, radius=None, static_residual=True, **kwargs)
+
     def forward(self, previous, current, state, lattice, action, box, support):
-        measurement = partial(lock_measurement, box=box, support_mask=support,
-                              sigma=self.sigma, radius=None, static_residual=True)
-        original = AdaptiveNodeCell._forward_lock
-        bound = FunctionType(original.__code__,
-                             {**original.__globals__, "lock_measurement": measurement},
-                             original.__name__, original.__defaults__, original.__closure__)
+        self._box, self._support = box, support
         dummy = current.new_zeros(state.shape[0], state.shape[1], 1, 1, 1)
-        result = bound(self, current, LockState(dummy, state, previous), action,
-                       lattice, 1.0, None, True)
+        result = self._forward_lock(current, LockState(dummy, state, previous), action,
+                                    lattice, 1.0, None, True)
         return result.nodes
 
 
