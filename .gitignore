@@ -74,3 +74,7 @@ downloaded_checkpoints/*
 # machine-specific NAS symlink and the FloWM paper copy (not part of the repo)
 /data
 /flowm.pdf
+
+# kinetic 3D agent scratch directories
+experiments/flowm_bench/k3d/.scratch/
+algorithms/mem_wm/backbones/kwm3d/.scratch/
