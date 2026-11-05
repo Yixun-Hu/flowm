@@ -36,15 +36,21 @@ on the same GPU. Seed 4's late checkpoints are the weakest of the five at 150 fr
 FloWM (3 seeds) → lock zero (5 seeds), unpaired means: −70.6% at 20 frames, −57.8% at 150 frames.
 Statistics script: scratchpad `campaign/h1_stats5.py` (reads the held-out JSONs under `kwm-wt-pr3/results/`).
 
-## Reading so far
+## Reading (five seeds, final)
 
-- **lock over lk** holds on all four seeds, both horizons, both inputs. At 20 frames the effect is tight (−18 to
-  −26%, p ≈ 0.001–0.002 with four seeds). At 150 frames it is now significant under zero input (−19%, p = 0.045) and
-  borderline under feedback (−33%, p = 0.053), where seed 3's lk run adds another feedback instability (0.172 at 150
-  frames under feedback versus 0.088 under zero input). Seed 2's lock run keeps its weak late checkpoints (0.082).
-- **Zero prediction input over feedback** holds on every arm and seed (lock: −9% at 20 frames, −17.5% at 150 frames,
-  p = 0.024). Seed 3 repeats the pattern: lk under feedback has a late-checkpoint spike; under zero input its
-  checkpoints 16k–20k are flat (0.086, 0.080, 0.094, 0.102, 0.078).
-- **Zero-then-freeze 30**: sign flips (−3.6, +2.5, −10.9, +3.0%). Not a claim; stays an option in PR3.
-- **Denzel's published numbers reproduce**: lk 0.0283 / 0.136 and FloWM 0.0681 / 0.179 bracket his one-seed
+- **lock over lk** holds on all five seeds at 20 frames under both inputs (−18 to −26 % per seed, p < 0.001). At
+  150 frames the direction holds on 5/5 seeds but the size varies: −16 % under zero input (p = 0.040; does not
+  survive a Holm correction over the four primary comparisons) and −26 % under feedback (p = 0.065), where seed 4
+  adds a near-zero difference (−0.6 %) and lk's feedback runs carry late-checkpoint spikes (seeds 1, 3). The
+  honest headline for PR1 is the native-input result: −22 % at 20 frames (5/5, p = 2e-4), −26 % at 150 frames
+  (5/5, p = 0.065, not significant).
+- **Zero prediction input over feedback** holds on every arm and seed (lock: −9 % at 20 frames, −18 % at 150
+  frames, p = 0.005). It is a PR3 option; under zero input the node update is inactive during prediction for both
+  rules (predon and predoff give identical per-sequence MSE), so the combined "lk → lock + zero" figure mixes two
+  changes and is not reported as PR1's effect.
+- **Zero-then-freeze 30**: sign flips (−3.6, +2.5, −10.9, +3.0, −14.9 %), p = 0.24. Not a claim; stays an option.
+- **Cost**: lock takes 1.19–1.29 × lk's time per step (median 4.47 vs 5.74 s/step at batch 16 with gradient
+  checkpointing on the shared A6000) and 19 % less peak memory (6.4 vs 5.2 GB). "Identical optimization budget",
+  not identical compute.
+- **Denzel's published numbers reproduce**: lk 0.0284 / 0.130 and FloWM 0.0681 / 0.179 bracket his one-seed
   0.027 / 0.089 and 0.067 / 0.145 (selection-set best checkpoints flatter the 150-frame column).
