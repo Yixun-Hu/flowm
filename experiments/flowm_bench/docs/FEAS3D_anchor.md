@@ -108,3 +108,35 @@ FloWM-3D baseline must be retrained on each split before any comparison (design 
 
 Training splits (10,000 clips each for K3D-v and K3D-a, ≈ 4.3 h each at the measured rate) are not generated: they
 wait for the user's approval of the model design (KINETIC3D_model_design.md, D1–D7).
+
+## Step 4 (2026-11-04): training splits, and a seed-overlap correction to the test splits
+
+User approval 2026-11-04 ("Yes, generate them"). Same generator commit (7e740ec) and NVIDIA renderer on GPU 1 as
+Step 3; eight render processes, gated on free GPU memory, alongside the H1 seed 4 training (no slowdown measured:
+3.4–3.5 s/step before and during). Throughput ≈ 1 s per clip, ≈ 3 h per 10,000 clips.
+
+| Split | Law | Seeds | Clips | Shards | Size |
+|---|---|---:|---:|---:|---:|
+| k3d_v_training | continuous velocity | 20270000–20279999 | 10000 | 40 × 250 | 14 GB |
+| k3d_a_training | velocity + acceleration | 20290000–20299999 | 10000 | 40 × 250 | 14 GB |
+
+Verification (200 sampled clips per split, as in Step 3): distinct contiguous seeds; 500 frames at 128 × 128,
+15 fps; 6–10 blocks equal to the stored block count; the released six `_actions.pt` keys; centres inside [1, 15];
+100 % fractional positions; K3D-v initial speeds 0.25–1.0 (median 0.63); K3D-a |a| in [2e-3, 1e-2]
+(median 4.6e-3), maximum speed 1.09; ≈ 225 bounce events per clip; frame montages look like the validation data.
+
+**Seed overlap in the Step 3 test splits, found and corrected.** The Step 3 chain used base seeds only 100 apart,
+so `k3d_v_test` (20261303+) shared 900 of its 1000 seeds with `k3d_v_validation` (20261203+), and likewise for
+the K3D-a pair: those test clips were not held out. Nothing had been trained or evaluated on them. The two
+directories were set aside as `k3d_{v,a}_test_overlap_seeds` and the test splits regenerated with disjoint ranges:
+
+| Split | Seeds | Clips | Verified |
+|---|---:|---:|---|
+| k3d_v_test | 20281000–20281999 | 1000 | as above; speeds 0.25–1.0, median 0.62 |
+| k3d_a_test | 20301000–20301999 | 1000 | as above; |a| median 4.5e-3, max speed 1.12 |
+
+Seed ranges are now pairwise disjoint for every pair of splits that share a law (validation / test / training for
+K3D-v and for K3D-a) and for the null splits. The three Step 3 validation splits (K3D-int 20261103+, K3D-v
+20261203+, K3D-a 20261403+) still overlap each other: a shared seed gives the same agent walk, block count,
+colours and initial layout under a *different* block law, which is harmless for a control and is left as is.
+The Step 3 released-checkpoint scores are on the validation splits and are unaffected.
