@@ -97,6 +97,7 @@ class BlockWorldVideoDataset(BaseAdvancedVideoDataset):
         "k3d_int_validation", "k3d_int_validation_sw200", "k3d_int_validation_nv200",
         "k3d_v_training", "k3d_v_validation", "k3d_v_test", "k3d_a_validation", "k3d_a_test",
         "k3d_null_noblocks", "k3d_null_static",  # 50 CPU-rendered clips each, stage 1 background null
+        "k3d_v_training", "k3d_a_training",  # 10,000 clips each, 40 shards of 250
         ]
 
     def __init__(self, cfg: DictConfig, split: str = "training", purpose: str = "training"):
