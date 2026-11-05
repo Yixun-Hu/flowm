@@ -95,7 +95,7 @@ class BlockWorldVideoDataset(BaseAdvancedVideoDataset):
         # Kinetic 3D (k3d) splits generated with the Miniworld-k3d fork; add a split here only once its data
         # exists, because build_metadata() caches an empty index for a missing split.
         "k3d_int_validation", "k3d_int_validation_sw200", "k3d_int_validation_nv200",
-        "k3d_v_training", "k3d_v_validation", "k3d_v_test", "k3d_a_validation", "k3d_a_test",
+        "k3d_v_validation", "k3d_v_test", "k3d_a_validation", "k3d_a_test",
         "k3d_null_noblocks", "k3d_null_static",  # 50 CPU-rendered clips each, stage 1 background null
         "k3d_v_training", "k3d_a_training",  # 10,000 clips each, 40 shards of 250
         ]
@@ -126,9 +126,9 @@ class BlockWorldVideoDataset(BaseAdvancedVideoDataset):
             return
         # Only index RGB videos (exclude depth videos like *_depth.mp4)
         root = self.save_dir / split
-        if split == "k3d_v_training" and not root.is_dir():
-            # Training generation may follow validation; never cache an empty
-            # index now that would hide newly generated training clips later.
+        if split.startswith("k3d_") and not root.is_dir():
+            # k3d splits may be (re)generated after registration; never cache an empty
+            # index that would hide clips generated later.
             return
         video_paths = [
             p for p in sorted(
