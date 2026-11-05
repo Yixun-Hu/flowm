@@ -1,0 +1,2 @@
+source,split,sigma,clips,steps,turns,alarms,node_steps,evidence,weighted_speed,seconds,alarm_rate,moving_node_alarm_rate,evidence_weighted_speed,verdict
+memory post-gate max-V tokens,k3d_null_noblocks,1.0,50,6259,691,17886,106403,542230.4921875,56941.05780029297,65.6676514763385,0.16809676418897965,0.17860281195079086,0.10501264429187265,FAIL

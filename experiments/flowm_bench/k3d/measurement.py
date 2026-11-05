@@ -40,13 +40,17 @@ def agreement_diagnostic():
 
 
 class NodeTracker:
-    def __init__(self, batch, sigma):
+    def __init__(self, batch, sigma, *, static_residual=True, support_mask=None,
+                 return_diagnostics=False):
         self.lattice = named_nodes("v17")
         self.rho = torch.zeros(batch, 17, 2)
         self.evidence = torch.zeros(batch, 17)
         self.locked = torch.zeros(batch, 17, dtype=torch.bool)
         self.perms = rotation_perms(self.lattice)
         self.sigma = sigma
+        self.static_residual = static_residual
+        self.support_mask = cone_mask()[7:26, 16:33] if support_mask is None else support_mask
+        self.return_diagnostics = return_diagnostics
 
     @property
     def nu(self):
@@ -67,14 +71,20 @@ class NodeTracker:
         measured = self.nu.clone()
         evidence = torch.zeros_like(self.evidence)
         agreement = torch.zeros_like(self.evidence)
+        before = torch.zeros_like(self.evidence)
+        prior = self.nu.clone()
         ids = (~turns).nonzero().flatten()
         if len(ids):
             nu = self.nu[ids]
             with agreement_diagnostic() as diagnostic:
-                value, ev, locked = lock_nodes.measure_nodes(
+                output = lock_nodes.measure_nodes(
                     previous[ids], current[ids], nu, self.lattice, camera_action(actions[ids]),
-                    world=33, dt=1, box=BOX, support_mask=cone_mask()[7:26, 16:33],
-                    sigma=self.sigma, radius=None, static_residual=True)
+                    world=33, dt=1, box=BOX, support_mask=self.support_mask,
+                    sigma=self.sigma, radius=None, static_residual=self.static_residual,
+                    return_diagnostics=self.return_diagnostics)
+                value, ev, locked = output[:3]
+                if self.return_diagnostics:
+                    before[ids] = output[3]["evidence_before_modes"]
             ev[:, 0] = 0
             cumulative = self.evidence[ids] + ev
             gain = ev[..., None] / cumulative[..., None].clamp_min(1e-6)
@@ -90,6 +100,9 @@ class NodeTracker:
         self.locked[:, 0] = False
         measured[:, 0] = 0
         agreement[:, 0] = 0
-        return dict(measured=measured, velocity=self.nu.clone(), evidence=evidence,
+        result = dict(measured=measured, velocity=self.nu.clone(), evidence=evidence,
                     agreement=agreement, locked=self.locked.clone(), turns=turns,
                     active=self.locked & (self.evidence > EVIDENCE_FLOOR))
+        if self.return_diagnostics:
+            result.update(evidence_before_modes=before, prior=prior)
+        return result

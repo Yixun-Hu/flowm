@@ -129,3 +129,100 @@ parity of the agreement observer with the production estimator.
 The empirical evidence test skips if `geometry.csv` has not yet been generated.
 The final suite passed all seven tests in 11.53 s, including released-weight loading.
 The log is `.scratch/pytest_final.log`.
+
+## Stage-one follow-up (2026-11-04)
+
+`bash experiments/flowm_bench/k3d/run_cpu.sh run_followup` runs the mask rerun,
+fast tests, alarm breakdown, direct patch search and memory diagnostic sequentially.
+It records status and wall times in `results/followup_commands.csv`; successful
+stages and atomically saved per-clip caches are reused on restart. The initial
+campaign started `followup mask` separately and used `run_followup --after-mask`
+to wait for that stage before continuing. Remove a stage's successful command row
+if intentionally repeating it. Source/configuration changes require new cache
+versions or removal of the affected follow-up cache; original caches are retained.
+
+Individual commands, in delivery order:
+
+```bash
+bash experiments/flowm_bench/k3d/run_cpu.sh followup mask
+bash experiments/flowm_bench/k3d/run_cpu.sh alarm_breakdown
+bash experiments/flowm_bench/k3d/run_cpu.sh patch_motion
+bash experiments/flowm_bench/k3d/run_cpu.sh memory_lift
+```
+
+The results document is **append-only** for this follow-up. Each completed
+split/configuration appends its numbers immediately, guarded by a unique HTML
+marker to avoid duplicate sections on resume. All new CSVs start with `followup_`.
+The original report generator is not run because it would replace the document.
+
+- `followup.py`: K=8 observation-only `tokens`, mask residual, sigma .5/1;
+  50+50 null clips, 20 integer contrast clips, 200 continuous-velocity clips.
+  Nonturn `intrinsic_incoming` is primary and `literal` secondary. Keeps the
+  original recurrent update, Hungarian matching and null alarm definition.
+  Calls production diagnostics on every measured pair and saves all 17 nodes'
+  pre-selection and selected evidence, immediate estimates, prior and recurrent
+  velocities, locks and actions under `.scratch/followup_trajectories/`.
+  The all-node CSV tables include fixed-lattice and pre-update adaptive nearest
+  nodes. A wrong node is farther than .5 from every visible truth. Infinite
+  ratios from zero true-node evidence and undefined 0/0 cases are counted;
+  no evidence floor is silently added to make those ratios finite.
+- `alarm_breakdown.py`: empty-room alarms and K3D-v locked/evidenced nodes,
+  subtract/mask, sigma 1, full/near/far support. Reuses original full-support
+  subtract trajectories. Near/far rerun the recurrence with cone cells at x<=6
+  or x>=7. Nonturn action groups are exclusive; turn-adjacent means either
+  neighboring pair is a turn, and takes precedence over forward/no-op. Actual
+  turns have no fresh measurement. Includes per-clip counts, full 2D velocity
+  histograms, radius-.25 mass near (+1,0), and an independent same-cell versus
+  ego-transported imprint SSD check on empty-room forward pairs.
+- `patch_motion.py`: oracle previous block location, uniform 3x3 SSD on a .5-cell
+  grid with axiswise parabolic refinement. Uses exact Fourier interpolation on
+  the same zero-filled 33x33 torus as LocalSearch, evaluated efficiently on a
+  half-cell grid. Search is ±1.5 **intrinsic** cells around the ego-transported
+  previous centre; output therefore already includes compensation for camera
+  translation. Shared bilinear cone support normalizes SSD; at least 4.5 of 9
+  cells must be valid. Boundary minima remain in the bounded search results.
+  Invalid pairs remain in denominators with infinite error. All jointly visible
+  blocks/nonturn pairs in 200 clips are retained, ignoring occlusion as before.
+  Tokens/h_new at K=8/32 and raw tokens at K=256 use the same pairs. Pair and
+  per-clip CSVs permit alternative aggregation; diagnostics are not a universal
+  mathematical upper bound on learned or temporally extended estimators.
+- `memory_lift.py`: mirrors the released forward's context loop, including
+  velocity flow, ego roll, learned cross-velocity mixing and the gated write.
+  Saves **post-blend map cone tokens**, max over V=5, before decoder positional
+  encoding; no decoder or prediction call. The public model forward cannot
+  return a zero-length prediction sequence, so this local adapter is checked
+  against hooks on its actual context loop. Caches 140 frames per clip under
+  `.scratch/lifts_mem/`, then runs mask sigma=1/K=8 on 50+50 null and 100 K3D-v
+  clips, appending each result as soon as that split finishes. This is a memory
+  diagnostic, explicitly distinct from the design's observation-only lift.
+
+The follow-up also includes `stationary_attribution.py`, added after whole-region
+SSD failed to establish global far-field stationarity. It replays every empty-room
+forward pair at the cached subtraction prior and observes the production selected
+pixel weights without changing the estimator return. Same-cell/ego SSD is then
+compared at the cells carrying alarm evidence. Reconstructed estimates are checked
+against the original cache. This runs once at the start of `memory_lift` (before
+loading the model), sequentially with the other eight-thread stages; its runtime
+has a separate CSV. It can also be run with `run_cpu.sh stationary_attribution`.
+
+The extended tests additionally check fractional single-patch motion with and
+without ego translation, Fourier interpolation, empty-support handling, alarm
+count/denominator partitions, multi-object evidence ratios, and exact fp16 parity
+of the context-only memory adapter with the released model's context writes.
+Use the existing fast-test command above. The follow-up test log is
+`.scratch/followup_tests.log`; final measured runtime and verdicts are in the
+dated Follow-up section of `../docs/K3D_stage1_results.md`.
+
+Completed follow-up: all requested samples, 1,840 measured trajectories,
+200 memory clips, and five runs over the same 44,990 block/pair examples.
+Measured command wall time was 71.98 minutes; final tests passed 11/11 in
+26.76 seconds. Both mask widths and the memory variant fail the null/gate
+criteria. Raw-token patch motion also remains weak. Exact results and the
+evidence-localized cone-stationarity diagnosis are in the appended report.
+
+The external KWM checkout changed from `2e73903` to `c7067d3` during execution.
+`run_cpu.sh followup_dependency_audit` compares scratch-loaded git snapshots on
+observation and memory pairs: all outputs and diagnostics were bitwise identical
+in 216 pair/configuration cases for the used default mask-key path. Its results
+and final provenance are retained in `followup_kwm_*.csv` and
+`followup_provenance_final.csv`. No KWM file was edited by this experiment.

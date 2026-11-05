@@ -1,0 +1,6 @@
+source,split,kind,mode,region,action,steps,measured_steps,node_steps,detections,steps_with_detection,evidenced_detections,locked_detections,near_forward,near_zero,vx_sum,vy_sum,node_rate,step_rate,evidenced_fraction,locked_fraction,near_forward_fraction,near_zero_fraction,mean_vx,mean_vy
+observation-only tokens,k3d_null_noblocks,alarm,mask,near,all,6259,6259,106403,6954,1054,0,0,0,0,601.5,-236.0,0.06535530013251506,0.16839750758907174,0.0,0.0,0.0,0.0,0.0864969801553063,-0.03393730227207363
+observation-only tokens,k3d_null_noblocks,alarm,mask,near,forward,3828,3828,65076,2218,550,0,0,0,0,668.5,-301.5,0.03408322576679575,0.14367816091954022,0.0,0.0,0.0,0.0,0.30139765554553655,-0.13593327321911633
+observation-only tokens,k3d_null_noblocks,alarm,mask,near,no-op,1460,1460,24820,800,94,0,0,0,0,-8.0,67.5,0.032232070910556,0.06438356164383562,0.0,0.0,0.0,0.0,-0.01,0.084375
+observation-only tokens,k3d_null_noblocks,alarm,mask,near,turn-adjacent,971,971,16507,3936,410,0,0,0,0,-59.0,-2.0,0.23844429635912037,0.42224510813594235,0.0,0.0,0.0,0.0,-0.014989837398373984,-0.0005081300813008131
+observation-only tokens,k3d_null_noblocks,alarm,mask,near,turn,691,0,0,0,0,0,0,0,0,0.0,0.0,nan,nan,nan,nan,nan,nan,nan,nan

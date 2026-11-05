@@ -1,0 +1,2 @@
+source,split,sigma,clips,steps,turns,alarms,node_steps,evidence,weighted_speed,seconds,alarm_rate,moving_node_alarm_rate,evidence_weighted_speed,verdict
+observation-only tokens,k3d_int_validation,1.0,20,2516,264,15701,42772,7510.009506225586,3240.049644470215,28.96617845632136,0.36708594407556344,0.3900288155802862,0.4314308313170982,contrast

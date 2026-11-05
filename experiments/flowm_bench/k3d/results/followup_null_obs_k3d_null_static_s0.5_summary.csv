@@ -1,0 +1,2 @@
+source,split,sigma,clips,steps,turns,alarms,node_steps,evidence,weighted_speed,seconds,alarm_rate,moving_node_alarm_rate,evidence_weighted_speed,verdict
+observation-only tokens,k3d_null_static,0.5,50,6288,662,19367,106896,268403.5814819336,13843.063171386719,67.41121090110391,0.1811760963927556,0.1924996024173028,0.05157555310907244,FAIL

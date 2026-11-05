@@ -122,3 +122,89 @@ def test_agreement_observer_preserves_production_measurement():
     assert all(torch.equal(a,b) for a,b in zip(original,observed))
     assert diagnostic["agreement"].shape == (1,17)
     assert (diagnostic["agreement"] >= 0).all()
+
+
+def test_single_patch_subpixel_motion_and_ego():
+    from k3d.patch_motion import single_patch_search, interpolation_matrix
+    # Smooth translated content, with the intrinsic/ego decomposition explicit.
+    yy, xx = torch.meshgrid(torch.arange(19)+7, torch.arange(17)+16, indexing="ij")
+    def scene(dx, dy):
+        channels = []
+        for ox, oy, width in ((0.,0.,1.2),(.7,-.4,1.5),(-.5,.8,1.)):
+            channels.append(torch.exp(-((xx-24-ox-dx)**2+(yy-16-oy-dy)**2)/(2*width**2)))
+        return torch.stack(channels)
+    velocity = torch.tensor([[.3,-.6],[.3,-.6],[1.,0.]])
+    ego = torch.tensor([[0.,0.],[1.,0.],[1.,0.]])
+    previous = scene(0,0)[None].expand(3,-1,-1,-1)
+    current = torch.stack([scene(*(v-a)) for v,a in zip(velocity,ego)])
+    result = single_patch_search(previous,current,torch.tensor([[9,8]]).expand(3,-1),ego=ego)
+    assert result["usable"].all() and not result["boundary"].any()
+    torch.testing.assert_close(result["velocity"],velocity,atol=.08,rtol=0)
+    # Exact Fourier interpolation preserves integer samples.
+    torch.testing.assert_close(interpolation_matrix(33)[::2],torch.eye(33),atol=1e-6,rtol=0)
+    # Empty support is an explicit unusable result, never a valid zero match.
+    empty = single_patch_search(previous[:1],current[:1],torch.tensor([[9,8]]),
+                                support=torch.zeros(19,17,dtype=torch.bool))
+    assert not empty["usable"].any()
+
+
+def test_alarm_breakdown_bookkeeping():
+    from k3d.alarm_breakdown import action_categories, breakdown_counts
+    # Placeholder action 0 is NOT a turn at t=0. Turns at incoming t=3 and t=7.
+    actions = torch.tensor([0,2,4,0,2,4,2,1,4,2])
+    assert action_categories(actions).tolist() == [
+        "forward","turn-adjacent","turn","turn-adjacent","no-op",
+        "turn-adjacent","turn","turn-adjacent","forward"]
+    v = torch.zeros(9,17,2)
+    v[:,1] = torch.tensor([1.,0.])
+    v[:,2] = torch.tensor([0.,1.])
+    agreement = torch.zeros(9,17)
+    agreement[:,1] = .1
+    agreement[:,2] = .099
+    turns = (actions[1:] == 0) | (actions[1:] == 1)
+    active = agreement >= .1
+    d = dict(actions=actions,turns=turns,measured=v,velocity=v,agreement=agreement,active=active,
+             evidence=active.float())
+    for kind in ("alarm","locked"):
+        rows, _, selected, _ = breakdown_counts(d,kind)
+        overall = rows[0]
+        assert overall["detections"] == 7 and overall["node_steps"] == 7*17
+        assert overall["near_forward"] == 7 and overall["near_zero"] == 0
+        assert overall["evidenced_detections"] == overall["locked_detections"] == 7
+        assert sum(r["detections"] for r in rows[1:]) == overall["detections"]
+        assert sum(r["node_steps"] for r in rows[1:]) == overall["node_steps"]
+        assert rows[-1]["steps"] == 2 and rows[-1]["detections"] == 0
+        assert not selected[turns].any()
+
+
+def test_all_node_evidence_handles_multiple_truths_and_zero_denominator():
+    from k3d.followup import evidence_step
+    nodes = torch.tensor([[0.,0.],[.3,0.],[-.8,0.],[1.,1.]])
+    target = torch.tensor([[.3,0.],[-.8,0.]])
+    r = evidence_step(torch.tensor([0.,2.,3.,1.]),nodes,target)
+    assert r["wins"] == 1 and r["any_win"] and not r["all_win"]
+    assert r["best_wrong_ratio"] == pytest.approx(1/3)
+    r = evidence_step(torch.tensor([0.,0.,0.,1.]),nodes,target)
+    assert np.isinf(r["best_wrong_ratio"]) and not r["any_win"]
+    assert np.isnan(evidence_step(torch.zeros(4),nodes,target)["best_wrong_ratio"])
+
+
+def test_memory_context_adapter_matches_released_context_writes():
+    from k3d.memory_lift import context_writes
+    model = load_model()
+    torch.backends.mha.set_fastpath_enabled(False)
+    item = ReadOnlyClips(clips("k3d_int_validation",1))[0]
+    x = item["videos"][:3][None]
+    a = torch.tensor([[0,2,0]])  # ignore first action, then forward, then turn
+    captured = []
+    def hook(module, args, output):
+        captured.append(module.extract_view_tokens(output,args[2])[0].max(1).values.half())
+    with torch.inference_mode():
+        handle = model.map_processor.register_forward_hook(hook)
+        try:
+            model(x,a,torch.tensor([[4]]))
+        finally:
+            handle.remove()
+        reference = torch.stack(captured[:3],1)
+        observed = context_writes(model,x,a)
+    assert torch.equal(reference,observed)

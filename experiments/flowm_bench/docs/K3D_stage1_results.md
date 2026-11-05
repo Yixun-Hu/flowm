@@ -892,3 +892,946 @@ Additional execution notes are recorded in `k3d/results/execution_notes.csv`. So
 | Ridge precision | The first full ridge run emitted float32 conditioning warnings. The final probe used float64 solves (59.932 s wall); cached lifts and KWM measurements remain fp32. Verdict unchanged. |
 | Result retention | A scoped k3d/.gitignore overrides repository-wide results/ and *.csv exclusions for the requested CSV evidence. Scratch remains ignored. No git commit was attempted. |
 | Elapsed time | First sanity launch 2026-11-04T15:51:44-05:00; final numerical/audit check 2026-11-04T18:07:54-05:00; 136.2 minutes elapsed. Core campaign ended at 18:00:00 EST. This elapsed interval includes implementation/reporting and overlaps; summed CPU-stage wall durations are separately recorded. |
+
+
+<!-- followup:header -->
+## Follow-up — 2026-11-04
+
+CPU only, eight threads; all clips retain frames 0–139. Original sections above are unchanged.
+Follow-up uses KWM `2e73903`, fixed K=8 unless stated, and cached fp16 lifts with fp32 measurements.
+Primary gate truth is now **intrinsic_incoming**; literal outgoing camera-relative metadata is secondary.
+Null alarm remains normalized LK agreement ≥.1 and immediate measured speed >.15, divided by all 17 node-steps.
+Null PASS requires alarm ≤2% and evidence-weighted speed ≤.05 on both nulls at the gate-selected sigma.
+Gate PASS requires Hungarian matched lower median ≤.1 and misses ≤30% in speeds .25–1 on nonturn pairs.
+Evidence diagnostics retain every node, before and after mode selection, irrespective of locking or assignment.
+Follow-up artifacts have the `followup_` prefix; trajectories are under `.scratch/followup_trajectories/`.
+Results below are appended as each measurement completes. Fractions, including alarm/miss rates, are in [0,1].
+
+
+<!-- followup:null-obs-k3d_null_noblocks-0.5 -->
+### 1. Mask null / contrast — observation-only tokens
+
+| source | split | clips | sigma | steps | alarms | alarm_rate | evidence_weighted_speed | verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| observation-only tokens | k3d_null_noblocks | 50 | 0.50000 | 6259 | 15904 | 0.14947 | 0.05135 | FAIL |
+
+Criterion: alarm ≤.02 and weighted speed ≤.05; K3D-int is a moving contrast, with no null criterion.
+
+
+<!-- followup:null-obs-k3d_null_noblocks-1 -->
+### 1. Mask null / contrast — observation-only tokens
+
+| source | split | clips | sigma | steps | alarms | alarm_rate | evidence_weighted_speed | verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| observation-only tokens | k3d_null_noblocks | 50 | 1.00000 | 6259 | 15226 | 0.14310 | 0.01688 | FAIL |
+
+Criterion: alarm ≤.02 and weighted speed ≤.05; K3D-int is a moving contrast, with no null criterion.
+
+
+<!-- followup:null-obs-k3d_null_static-0.5 -->
+### 1. Mask null / contrast — observation-only tokens
+
+| source | split | clips | sigma | steps | alarms | alarm_rate | evidence_weighted_speed | verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| observation-only tokens | k3d_null_static | 50 | 0.50000 | 6288 | 19367 | 0.18118 | 0.05158 | FAIL |
+
+Criterion: alarm ≤.02 and weighted speed ≤.05; K3D-int is a moving contrast, with no null criterion.
+
+
+<!-- followup:null-obs-k3d_null_static-1 -->
+### 1. Mask null / contrast — observation-only tokens
+
+| source | split | clips | sigma | steps | alarms | alarm_rate | evidence_weighted_speed | verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| observation-only tokens | k3d_null_static | 50 | 1.00000 | 6288 | 20936 | 0.19585 | 0.01861 | FAIL |
+
+Criterion: alarm ≤.02 and weighted speed ≤.05; K3D-int is a moving contrast, with no null criterion.
+
+
+<!-- followup:null-obs-k3d_int_validation-0.5 -->
+### 1. Mask null / contrast — observation-only tokens
+
+| source | split | clips | sigma | steps | alarms | alarm_rate | evidence_weighted_speed | verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| observation-only tokens | k3d_int_validation | 20 | 0.50000 | 2516 | 15935 | 0.37256 | 0.73875 | contrast |
+
+Criterion: alarm ≤.02 and weighted speed ≤.05; K3D-int is a moving contrast, with no null criterion.
+
+
+<!-- followup:null-obs-k3d_int_validation-1 -->
+### 1. Mask null / contrast — observation-only tokens
+
+| source | split | clips | sigma | steps | alarms | alarm_rate | evidence_weighted_speed | verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| observation-only tokens | k3d_int_validation | 20 | 1.00000 | 2516 | 15701 | 0.36709 | 0.43143 | contrast |
+
+Criterion: alarm ≤.02 and weighted speed ≤.05; K3D-int is a moving contrast, with no null criterion.
+
+
+<!-- followup:gate-obs-0.5 -->
+### 1. Mask estimator gate — observation-only tokens, σ=0.5
+
+| source | truth_mode | speed_bin | truths | assigned | median | p90 | miss_rate | false_alarm_rate | verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| observation-only tokens | intrinsic_incoming | all | 44990 | 3536 | 0.41176 | 0.92604 | 0.95117 | 0.50106 | FAIL |
+| observation-only tokens | intrinsic_incoming | 0.25-1 | 44990 | 3536 | 0.41176 | 0.92604 | 0.95117 | 0.50106 | FAIL |
+| observation-only tokens | intrinsic_incoming | 0.25-0.5 | 14738 | 1162 | 0.45456 | 0.89903 | 0.95434 | 0.39541 | FAIL |
+| observation-only tokens | intrinsic_incoming | 0.5-0.75 | 14612 | 1213 | 0.40176 | 0.90723 | 0.94703 | 0.32870 | FAIL |
+| observation-only tokens | intrinsic_incoming | 0.75-1 | 15640 | 1161 | 0.37903 | 1.02851 | 0.95205 | 0.42242 | FAIL |
+| observation-only tokens | literal | all | 44990 | 3536 | 0.66970 | 1.60480 | 0.97066 | 0.69602 | FAIL |
+| observation-only tokens | literal | 0.25-1 | 30097 | 2579 | 0.51394 | 1.26530 | 0.95827 | 0.69602 | FAIL |
+| observation-only tokens | literal | 0.25-0.5 | 9012 | 806 | 0.49080 | 1.10685 | 0.95417 | 0.56122 | FAIL |
+| observation-only tokens | literal | 0.5-0.75 | 10256 | 915 | 0.49273 | 1.32055 | 0.95505 | 0.63272 | FAIL |
+| observation-only tokens | literal | 0.75-1 | 10829 | 858 | 0.56609 | 1.43939 | 0.96472 | 0.67738 | FAIL |
+
+Criterion applies to intrinsic_incoming, speed .25–1: median ≤.1 and miss ≤.30. Other rows are diagnostics.
+
+All-node selectivity on nonturn steps with jointly visible blocks. `any_nearest_top` is the fraction of steps where at least one truth's nearest node has positive maximum evidence; `all_nearest_top` requires all truths' nearest nodes to tie that maximum. `object_nearest_top` counts object-step pairs. Nearest nodes use the fixed lattice or pre-update adaptive velocities as labelled. Wrong nodes lie >.5 from **every** visible truth; ratio is their largest evidence divided by the largest nearest-true-node evidence. Zero denominator with positive wrong mass is infinity; 0/0 is undefined and excluded. Both counts are explicit.
+
+| source | truth_mode | node_basis | field | steps | any_nearest_top | all_nearest_top | object_nearest_top | mean_best_wrong_ratio | finite_mean_ratio | infinite_ratios | undefined_0_0 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| observation-only tokens | intrinsic_incoming | lattice | evidence | 15876 | 0.19394 | 0.02696 | 0.07599 | inf | 3504078.80492 | 2966 | 1571 |
+| observation-only tokens | intrinsic_incoming | lattice | evidence_before_modes | 15876 | 0.18871 | 0.02708 | 0.07397 | inf | 573427.53170 | 2797 | 1326 |
+| observation-only tokens | intrinsic_incoming | prior_adaptive | evidence | 15876 | 0.22443 | 0.03187 | 0.08884 | inf | 4130.02564 | 2744 | 1718 |
+| observation-only tokens | intrinsic_incoming | prior_adaptive | evidence_before_modes | 15876 | 0.23803 | 0.03546 | 0.09447 | inf | 334.58790 | 2354 | 1430 |
+| observation-only tokens | literal | lattice | evidence | 15876 | 0.15514 | 0.02154 | 0.06584 | inf | 3155676.41873 | 4423 | 1458 |
+| observation-only tokens | literal | lattice | evidence_before_modes | 15876 | 0.15249 | 0.02192 | 0.06575 | inf | 693197.72029 | 3818 | 1252 |
+| observation-only tokens | literal | prior_adaptive | evidence | 15876 | 0.17019 | 0.02948 | 0.07795 | inf | 77316.28070 | 4473 | 1508 |
+| observation-only tokens | literal | prior_adaptive | evidence_before_modes | 15876 | 0.18355 | 0.03175 | 0.08435 | inf | 72309.77664 | 3838 | 1279 |
+
+Mean evidence and lock fraction on **all** nonturn node-steps (no truth selection):
+
+| source | node | vx | vy | evidence | evidence_before_modes | locked |
+| --- | --- | --- | --- | --- | --- | --- |
+| observation-only tokens | 0 | 0.00000 | 0.00000 | 0.00000 | 0.00000 | 0.00000 |
+| observation-only tokens | 1 | 0.25000 | 0.25000 | 0.74706 | 0.97132 | 0.01406 |
+| observation-only tokens | 2 | -0.25000 | 0.25000 | 0.68542 | 0.89390 | 0.01338 |
+| observation-only tokens | 3 | -0.25000 | -0.25000 | 0.69780 | 0.90456 | 0.01378 |
+| observation-only tokens | 4 | 0.25000 | -0.25000 | 0.77019 | 0.99737 | 0.01545 |
+| observation-only tokens | 5 | 0.75000 | 0.75000 | 0.48544 | 0.97538 | 0.01059 |
+| observation-only tokens | 6 | -0.75000 | 0.75000 | 0.36483 | 0.78466 | 0.00908 |
+| observation-only tokens | 7 | -0.75000 | -0.75000 | 0.36314 | 0.77165 | 0.00924 |
+| observation-only tokens | 8 | 0.75000 | -0.75000 | 0.48541 | 0.96973 | 0.01008 |
+| observation-only tokens | 9 | 0.25000 | 0.75000 | 0.56595 | 0.89336 | 0.01302 |
+| observation-only tokens | 10 | -0.75000 | 0.25000 | 0.46483 | 0.82676 | 0.01123 |
+| observation-only tokens | 11 | -0.25000 | -0.75000 | 0.59454 | 0.95371 | 0.01394 |
+| observation-only tokens | 12 | 0.75000 | -0.25000 | 0.70491 | 1.14160 | 0.01888 |
+| observation-only tokens | 13 | 0.75000 | 0.25000 | 0.72577 | 1.19391 | 0.01816 |
+| observation-only tokens | 14 | -0.25000 | 0.75000 | 0.55583 | 0.89393 | 0.01211 |
+| observation-only tokens | 15 | -0.75000 | -0.25000 | 0.46328 | 0.78752 | 0.00988 |
+| observation-only tokens | 16 | 0.25000 | -0.75000 | 0.62974 | 0.98609 | 0.01426 |
+
+Per-step evidence comparisons: `results/followup_gate_obs_s0.5_evidence_steps.csv`. All 17-node arrays and estimates at every step are retained in the versioned trajectory tensors.
+
+
+<!-- followup:gate-obs-1 -->
+### 1. Mask estimator gate — observation-only tokens, σ=1
+
+| source | truth_mode | speed_bin | truths | assigned | median | p90 | miss_rate | false_alarm_rate | verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| observation-only tokens | intrinsic_incoming | all | 44990 | 676 | 0.40741 | 0.83619 | 0.99049 | 0.57658 | FAIL |
+| observation-only tokens | intrinsic_incoming | 0.25-1 | 44990 | 676 | 0.40741 | 0.83619 | 0.99049 | 0.57658 | FAIL |
+| observation-only tokens | intrinsic_incoming | 0.25-0.5 | 14738 | 178 | 0.41984 | 0.85642 | 0.99274 | 0.23529 | FAIL |
+| observation-only tokens | intrinsic_incoming | 0.5-0.75 | 14612 | 239 | 0.44937 | 0.76970 | 0.99021 | 0.19565 | FAIL |
+| observation-only tokens | intrinsic_incoming | 0.75-1 | 15640 | 259 | 0.33919 | 0.90361 | 0.98862 | 0.26710 | FAIL |
+| observation-only tokens | literal | all | 44990 | 676 | 0.61566 | 1.46428 | 0.99389 | 0.71797 | FAIL |
+| observation-only tokens | literal | 0.25-1 | 30097 | 514 | 0.49071 | 1.25624 | 0.99129 | 0.71797 | FAIL |
+| observation-only tokens | literal | 0.25-0.5 | 9012 | 151 | 0.44961 | 1.11470 | 0.99101 | 0.42647 | FAIL |
+| observation-only tokens | literal | 0.5-0.75 | 10256 | 186 | 0.51309 | 1.40534 | 0.99142 | 0.51087 | FAIL |
+| observation-only tokens | literal | 0.75-1 | 10829 | 177 | 0.45548 | 1.42650 | 0.99141 | 0.53094 | FAIL |
+
+Criterion applies to intrinsic_incoming, speed .25–1: median ≤.1 and miss ≤.30. Other rows are diagnostics.
+
+All-node selectivity on nonturn steps with jointly visible blocks. `any_nearest_top` is the fraction of steps where at least one truth's nearest node has positive maximum evidence; `all_nearest_top` requires all truths' nearest nodes to tie that maximum. `object_nearest_top` counts object-step pairs. Nearest nodes use the fixed lattice or pre-update adaptive velocities as labelled. Wrong nodes lie >.5 from **every** visible truth; ratio is their largest evidence divided by the largest nearest-true-node evidence. Zero denominator with positive wrong mass is infinity; 0/0 is undefined and excluded. Both counts are explicit.
+
+| source | truth_mode | node_basis | field | steps | any_nearest_top | all_nearest_top | object_nearest_top | mean_best_wrong_ratio | finite_mean_ratio | infinite_ratios | undefined_0_0 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| observation-only tokens | intrinsic_incoming | lattice | evidence | 15876 | 0.06324 | 0.00787 | 0.02501 | inf | 13693.31016 | 1043 | 12367 |
+| observation-only tokens | intrinsic_incoming | lattice | evidence_before_modes | 15876 | 0.06374 | 0.00781 | 0.02534 | inf | 14203.49375 | 1067 | 12228 |
+| observation-only tokens | intrinsic_incoming | prior_adaptive | evidence | 15876 | 0.07300 | 0.00964 | 0.03021 | inf | 1187.01359 | 969 | 12371 |
+| observation-only tokens | intrinsic_incoming | prior_adaptive | evidence_before_modes | 15876 | 0.07697 | 0.01014 | 0.03196 | inf | 2176.38690 | 931 | 12192 |
+| observation-only tokens | literal | lattice | evidence | 15876 | 0.04995 | 0.00630 | 0.02158 | inf | 142.87126 | 1611 | 12293 |
+| observation-only tokens | literal | lattice | evidence_before_modes | 15876 | 0.05329 | 0.00655 | 0.02294 | inf | 1468.94927 | 1559 | 12163 |
+| observation-only tokens | literal | prior_adaptive | evidence | 15876 | 0.05732 | 0.00831 | 0.02638 | inf | 55.23811 | 1606 | 12270 |
+| observation-only tokens | literal | prior_adaptive | evidence_before_modes | 15876 | 0.06230 | 0.00926 | 0.02847 | inf | 923.65415 | 1559 | 12128 |
+
+Mean evidence and lock fraction on **all** nonturn node-steps (no truth selection):
+
+| source | node | vx | vy | evidence | evidence_before_modes | locked |
+| --- | --- | --- | --- | --- | --- | --- |
+| observation-only tokens | 0 | 0.00000 | 0.00000 | 0.00000 | 0.00000 | 0.00000 |
+| observation-only tokens | 1 | 0.25000 | 0.25000 | 0.38581 | 0.43942 | 0.00546 |
+| observation-only tokens | 2 | -0.25000 | 0.25000 | 0.36935 | 0.42255 | 0.00530 |
+| observation-only tokens | 3 | -0.25000 | -0.25000 | 0.40216 | 0.46168 | 0.00585 |
+| observation-only tokens | 4 | 0.25000 | -0.25000 | 0.38032 | 0.43720 | 0.00585 |
+| observation-only tokens | 5 | 0.75000 | 0.75000 | 0.08246 | 0.18146 | 0.00219 |
+| observation-only tokens | 6 | -0.75000 | 0.75000 | 0.05844 | 0.14487 | 0.00167 |
+| observation-only tokens | 7 | -0.75000 | -0.75000 | 0.06629 | 0.15153 | 0.00203 |
+| observation-only tokens | 8 | 0.75000 | -0.75000 | 0.06525 | 0.15055 | 0.00163 |
+| observation-only tokens | 9 | 0.25000 | 0.75000 | 0.14677 | 0.25327 | 0.00343 |
+| observation-only tokens | 10 | -0.75000 | 0.25000 | 0.10791 | 0.21320 | 0.00263 |
+| observation-only tokens | 11 | -0.25000 | -0.75000 | 0.16016 | 0.25366 | 0.00327 |
+| observation-only tokens | 12 | 0.75000 | -0.25000 | 0.14457 | 0.25726 | 0.00291 |
+| observation-only tokens | 13 | 0.75000 | 0.25000 | 0.14114 | 0.25057 | 0.00243 |
+| observation-only tokens | 14 | -0.25000 | 0.75000 | 0.13592 | 0.23489 | 0.00331 |
+| observation-only tokens | 15 | -0.75000 | -0.25000 | 0.12496 | 0.22525 | 0.00235 |
+| observation-only tokens | 16 | 0.25000 | -0.75000 | 0.20319 | 0.29630 | 0.00378 |
+
+Per-step evidence comparisons: `results/followup_gate_obs_s1_evidence_steps.csv`. All 17-node arrays and estimates at every step are retained in the versioned trajectory tensors.
+
+
+<!-- followup:breakdown-k3d_null_noblocks-subtract-all -->
+### 2. Alarm breakdown — observation-only tokens, k3d_null_noblocks, subtract, all support
+
+| source | action | steps | node_steps | detections | node_rate | step_rate | evidenced_fraction | locked_fraction | near_forward_fraction | near_zero_fraction | mean_vx | mean_vy |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| observation-only tokens | all | 6259 | 106403 | 5058 | 0.04754 | 0.26618 | 1.00000 | 0.95176 | 0.52887 | 0.00000 | 0.97454 | 0.00796 |
+| observation-only tokens | forward | 3828 | 65076 | 4687 | 0.07202 | 0.40935 | 1.00000 | 0.95071 | 0.52336 | 0.00000 | 0.97686 | 0.00945 |
+| observation-only tokens | no-op | 1460 | 24820 | 0 | 0.00000 | 0.00000 | nan | nan | nan | nan | nan | nan |
+| observation-only tokens | turn-adjacent | 971 | 16507 | 371 | 0.02248 | 0.10196 | 1.00000 | 0.96496 | 0.59838 | 0.00000 | 0.94525 | -0.01091 |
+| observation-only tokens | turn | 691 | 0 | 0 | nan | nan | nan | nan | nan | nan | nan | nan |
+
+Nonturn groups are exclusive: turn-adjacent means the preceding or following incoming pair is a turn; forward/no-op exclude those pairs. Actual turn pairs carry state but have no new measurement and are excluded from detection denominators. Near (+1,0) and near zero mean Euclidean radius .25. Nulls use immediate measured velocities and the original alarm definition; K3D-v uses locked/evidenced recurrent velocities, as in the gate. `evidenced_fraction` counts selected evidence >1e-6; `locked_fraction` counts active locks among nominal alarms. Pre-search agreement alarms need not survive mask-mode search confirmation or mode selection. Near support is cone∩{rel_x≤6}, far is cone∩{rel_x≥7}; each support reruns the complete recurrence. No new acceptance criterion.
+
+| source | axis | lo | hi | count | fraction |
+| --- | --- | --- | --- | --- | --- |
+| observation-only tokens | vx | -inf | -1.50000 | 0 | 0.00000 |
+| observation-only tokens | vx | -1.50000 | -1.00000 | 0 | 0.00000 |
+| observation-only tokens | vx | -1.00000 | -0.50000 | 0 | 0.00000 |
+| observation-only tokens | vx | -0.50000 | 0.00000 | 3 | 0.00059 |
+| observation-only tokens | vx | 0.00000 | 0.50000 | 18 | 0.00356 |
+| observation-only tokens | vx | 0.50000 | 1.00000 | 2732 | 0.54013 |
+| observation-only tokens | vx | 1.00000 | 1.50000 | 2305 | 0.45571 |
+| observation-only tokens | vx | 1.50000 | inf | 0 | 0.00000 |
+| observation-only tokens | vy | -inf | -1.50000 | 0 | 0.00000 |
+| observation-only tokens | vy | -1.50000 | -1.00000 | 38 | 0.00751 |
+| observation-only tokens | vy | -1.00000 | -0.50000 | 448 | 0.08857 |
+| observation-only tokens | vy | -0.50000 | 0.00000 | 2062 | 0.40767 |
+| observation-only tokens | vy | 0.00000 | 0.50000 | 1965 | 0.38849 |
+| observation-only tokens | vy | 0.50000 | 1.00000 | 496 | 0.09806 |
+| observation-only tokens | vy | 1.00000 | 1.50000 | 49 | 0.00969 |
+| observation-only tokens | vy | 1.50000 | inf | 0 | 0.00000 |
+
+Full action-conditioned 2D velocity histogram: `results/followup_breakdown_k3d_null_noblocks_subtract_all_histogram.csv`; half-open bins include under/overflow.
+
+
+<!-- followup:mask-verdict -->
+### 1. Verdict — observation-only tokens
+
+**FAIL** for both nulls and for the estimator gate at both widths. The original best-width ordering (passing status, then matched median, then miss rate) selects σ=1: intrinsic matched median 0.40741, p90 0.83619, miss 99.05%. Its empty/static null alarm rates are 14.31%/19.59%, versus the ≤2% limit; weighted speeds 0.01688/0.01861 satisfy ≤.05. At σ=.5 the gate misses fewer truths (95.12%) but its median remains 0.41176. No acceptance threshold changed. All-node evidence is not selective: fixed-lattice nearest-true nodes lead on 19.39%/6.32% of eligible steps at σ=.5/1; adaptive-prior comparisons give 22.44%/7.30%. Mean best-wrong ratios are infinite at both widths because some steps have positive wrong evidence and zero nearest-true evidence. The undefined 0/0 and finite-only ratios are reported explicitly above. Mask rerun time: 945.89 s, including scoring.
+
+
+<!-- followup:breakdown-k3d_null_noblocks-subtract-near -->
+### 2. Alarm breakdown — observation-only tokens, k3d_null_noblocks, subtract, near support
+
+| source | action | steps | node_steps | detections | node_rate | step_rate | evidenced_fraction | locked_fraction | near_forward_fraction | near_zero_fraction | mean_vx | mean_vy |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| observation-only tokens | all | 6259 | 106403 | 1821 | 0.01711 | 0.16632 | 0.42943 | 0.42943 | 0.00769 | 0.03240 | 0.45307 | -0.01862 |
+| observation-only tokens | forward | 3828 | 65076 | 1762 | 0.02708 | 0.25993 | 0.42225 | 0.42225 | 0.00738 | 0.03292 | 0.45178 | -0.01267 |
+| observation-only tokens | no-op | 1460 | 24820 | 0 | 0.00000 | 0.00000 | nan | nan | nan | nan | nan | nan |
+| observation-only tokens | turn-adjacent | 971 | 16507 | 59 | 0.00357 | 0.04737 | 0.64407 | 0.64407 | 0.01695 | 0.01695 | 0.49160 | -0.19643 |
+| observation-only tokens | turn | 691 | 0 | 0 | nan | nan | nan | nan | nan | nan | nan | nan |
+
+Nonturn groups are exclusive: turn-adjacent means the preceding or following incoming pair is a turn; forward/no-op exclude those pairs. Actual turn pairs carry state but have no new measurement and are excluded from detection denominators. Near (+1,0) and near zero mean Euclidean radius .25. Nulls use immediate measured velocities and the original alarm definition; K3D-v uses locked/evidenced recurrent velocities, as in the gate. `evidenced_fraction` counts selected evidence >1e-6; `locked_fraction` counts active locks among nominal alarms. Pre-search agreement alarms need not survive mask-mode search confirmation or mode selection. Near support is cone∩{rel_x≤6}, far is cone∩{rel_x≥7}; each support reruns the complete recurrence. No new acceptance criterion.
+
+| source | axis | lo | hi | count | fraction |
+| --- | --- | --- | --- | --- | --- |
+| observation-only tokens | vx | -inf | -1.50000 | 0 | 0.00000 |
+| observation-only tokens | vx | -1.50000 | -1.00000 | 0 | 0.00000 |
+| observation-only tokens | vx | -1.00000 | -0.50000 | 189 | 0.10379 |
+| observation-only tokens | vx | -0.50000 | 0.00000 | 9 | 0.00494 |
+| observation-only tokens | vx | 0.00000 | 0.50000 | 472 | 0.25920 |
+| observation-only tokens | vx | 0.50000 | 1.00000 | 1142 | 0.62713 |
+| observation-only tokens | vx | 1.00000 | 1.50000 | 9 | 0.00494 |
+| observation-only tokens | vx | 1.50000 | inf | 0 | 0.00000 |
+| observation-only tokens | vy | -inf | -1.50000 | 0 | 0.00000 |
+| observation-only tokens | vy | -1.50000 | -1.00000 | 7 | 0.00384 |
+| observation-only tokens | vy | -1.00000 | -0.50000 | 467 | 0.25645 |
+| observation-only tokens | vy | -0.50000 | 0.00000 | 558 | 0.30643 |
+| observation-only tokens | vy | 0.00000 | 0.50000 | 360 | 0.19769 |
+| observation-only tokens | vy | 0.50000 | 1.00000 | 426 | 0.23394 |
+| observation-only tokens | vy | 1.00000 | 1.50000 | 3 | 0.00165 |
+| observation-only tokens | vy | 1.50000 | inf | 0 | 0.00000 |
+
+Full action-conditioned 2D velocity histogram: `results/followup_breakdown_k3d_null_noblocks_subtract_near_histogram.csv`; half-open bins include under/overflow.
+
+
+<!-- followup:breakdown-k3d_null_noblocks-subtract-far -->
+### 2. Alarm breakdown — observation-only tokens, k3d_null_noblocks, subtract, far support
+
+| source | action | steps | node_steps | detections | node_rate | step_rate | evidenced_fraction | locked_fraction | near_forward_fraction | near_zero_fraction | mean_vx | mean_vy |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| observation-only tokens | all | 6259 | 106403 | 5034 | 0.04731 | 0.27257 | 1.00000 | 0.92372 | 0.40286 | 0.00000 | 0.98722 | 0.01304 |
+| observation-only tokens | forward | 3828 | 65076 | 4664 | 0.07167 | 0.42032 | 1.00000 | 0.92024 | 0.39880 | 0.00000 | 0.99070 | 0.01337 |
+| observation-only tokens | no-op | 1460 | 24820 | 0 | 0.00000 | 0.00000 | nan | nan | nan | nan | nan | nan |
+| observation-only tokens | turn-adjacent | 971 | 16507 | 370 | 0.02241 | 0.09990 | 1.00000 | 0.96757 | 0.45405 | 0.00000 | 0.94335 | 0.00879 |
+| observation-only tokens | turn | 691 | 0 | 0 | nan | nan | nan | nan | nan | nan | nan | nan |
+
+Nonturn groups are exclusive: turn-adjacent means the preceding or following incoming pair is a turn; forward/no-op exclude those pairs. Actual turn pairs carry state but have no new measurement and are excluded from detection denominators. Near (+1,0) and near zero mean Euclidean radius .25. Nulls use immediate measured velocities and the original alarm definition; K3D-v uses locked/evidenced recurrent velocities, as in the gate. `evidenced_fraction` counts selected evidence >1e-6; `locked_fraction` counts active locks among nominal alarms. Pre-search agreement alarms need not survive mask-mode search confirmation or mode selection. Near support is cone∩{rel_x≤6}, far is cone∩{rel_x≥7}; each support reruns the complete recurrence. No new acceptance criterion.
+
+| source | axis | lo | hi | count | fraction |
+| --- | --- | --- | --- | --- | --- |
+| observation-only tokens | vx | -inf | -1.50000 | 0 | 0.00000 |
+| observation-only tokens | vx | -1.50000 | -1.00000 | 0 | 0.00000 |
+| observation-only tokens | vx | -1.00000 | -0.50000 | 0 | 0.00000 |
+| observation-only tokens | vx | -0.50000 | 0.00000 | 0 | 0.00000 |
+| observation-only tokens | vx | 0.00000 | 0.50000 | 21 | 0.00417 |
+| observation-only tokens | vx | 0.50000 | 1.00000 | 2387 | 0.47418 |
+| observation-only tokens | vx | 1.00000 | 1.50000 | 2626 | 0.52165 |
+| observation-only tokens | vx | 1.50000 | inf | 0 | 0.00000 |
+| observation-only tokens | vy | -inf | -1.50000 | 0 | 0.00000 |
+| observation-only tokens | vy | -1.50000 | -1.00000 | 84 | 0.01669 |
+| observation-only tokens | vy | -1.00000 | -0.50000 | 618 | 0.12277 |
+| observation-only tokens | vy | -0.50000 | 0.00000 | 1842 | 0.36591 |
+| observation-only tokens | vy | 0.00000 | 0.50000 | 1677 | 0.33313 |
+| observation-only tokens | vy | 0.50000 | 1.00000 | 739 | 0.14680 |
+| observation-only tokens | vy | 1.00000 | 1.50000 | 74 | 0.01470 |
+| observation-only tokens | vy | 1.50000 | inf | 0 | 0.00000 |
+
+Full action-conditioned 2D velocity histogram: `results/followup_breakdown_k3d_null_noblocks_subtract_far_histogram.csv`; half-open bins include under/overflow.
+
+
+<!-- followup:breakdown-k3d_null_noblocks-mask-all -->
+### 2. Alarm breakdown — observation-only tokens, k3d_null_noblocks, mask, all support
+
+| source | action | steps | node_steps | detections | node_rate | step_rate | evidenced_fraction | locked_fraction | near_forward_fraction | near_zero_fraction | mean_vx | mean_vy |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| observation-only tokens | all | 6259 | 106403 | 15226 | 0.14310 | 0.53044 | 0.05307 | 0.00059 | 0.01222 | 0.12229 | 0.13538 | 0.03431 |
+| observation-only tokens | forward | 3828 | 65076 | 10697 | 0.16438 | 0.69958 | 0.01169 | 0.00000 | 0.01365 | 0.10180 | 0.18688 | 0.05242 |
+| observation-only tokens | no-op | 1460 | 24820 | 742 | 0.02990 | 0.07603 | 0.11051 | 0.00000 | 0.00809 | 0.18868 | -0.05036 | -0.05168 |
+| observation-only tokens | turn-adjacent | 971 | 16507 | 3787 | 0.22942 | 0.54686 | 0.15870 | 0.00238 | 0.00898 | 0.16715 | 0.02630 | 0.00001 |
+| observation-only tokens | turn | 691 | 0 | 0 | nan | nan | nan | nan | nan | nan | nan | nan |
+
+Nonturn groups are exclusive: turn-adjacent means the preceding or following incoming pair is a turn; forward/no-op exclude those pairs. Actual turn pairs carry state but have no new measurement and are excluded from detection denominators. Near (+1,0) and near zero mean Euclidean radius .25. Nulls use immediate measured velocities and the original alarm definition; K3D-v uses locked/evidenced recurrent velocities, as in the gate. `evidenced_fraction` counts selected evidence >1e-6; `locked_fraction` counts active locks among nominal alarms. Pre-search agreement alarms need not survive mask-mode search confirmation or mode selection. Near support is cone∩{rel_x≤6}, far is cone∩{rel_x≥7}; each support reruns the complete recurrence. No new acceptance criterion.
+
+| source | axis | lo | hi | count | fraction |
+| --- | --- | --- | --- | --- | --- |
+| observation-only tokens | vx | -inf | -1.50000 | 0 | 0.00000 |
+| observation-only tokens | vx | -1.50000 | -1.00000 | 258 | 0.01694 |
+| observation-only tokens | vx | -1.00000 | -0.50000 | 2030 | 0.13332 |
+| observation-only tokens | vx | -0.50000 | 0.00000 | 3726 | 0.24471 |
+| observation-only tokens | vx | 0.00000 | 0.50000 | 4954 | 0.32536 |
+| observation-only tokens | vx | 0.50000 | 1.00000 | 3472 | 0.22803 |
+| observation-only tokens | vx | 1.00000 | 1.50000 | 786 | 0.05162 |
+| observation-only tokens | vx | 1.50000 | inf | 0 | 0.00000 |
+| observation-only tokens | vy | -inf | -1.50000 | 0 | 0.00000 |
+| observation-only tokens | vy | -1.50000 | -1.00000 | 365 | 0.02397 |
+| observation-only tokens | vy | -1.00000 | -0.50000 | 2648 | 0.17391 |
+| observation-only tokens | vy | -0.50000 | 0.00000 | 4018 | 0.26389 |
+| observation-only tokens | vy | 0.00000 | 0.50000 | 4753 | 0.31216 |
+| observation-only tokens | vy | 0.50000 | 1.00000 | 3097 | 0.20340 |
+| observation-only tokens | vy | 1.00000 | 1.50000 | 345 | 0.02266 |
+| observation-only tokens | vy | 1.50000 | inf | 0 | 0.00000 |
+
+Full action-conditioned 2D velocity histogram: `results/followup_breakdown_k3d_null_noblocks_mask_all_histogram.csv`; half-open bins include under/overflow.
+
+
+<!-- followup:breakdown-k3d_null_noblocks-mask-near -->
+### 2. Alarm breakdown — observation-only tokens, k3d_null_noblocks, mask, near support
+
+| source | action | steps | node_steps | detections | node_rate | step_rate | evidenced_fraction | locked_fraction | near_forward_fraction | near_zero_fraction | mean_vx | mean_vy |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| observation-only tokens | all | 6259 | 106403 | 6954 | 0.06536 | 0.16840 | 0.00000 | 0.00000 | 0.00000 | 0.00000 | 0.08650 | -0.03394 |
+| observation-only tokens | forward | 3828 | 65076 | 2218 | 0.03408 | 0.14368 | 0.00000 | 0.00000 | 0.00000 | 0.00000 | 0.30140 | -0.13593 |
+| observation-only tokens | no-op | 1460 | 24820 | 800 | 0.03223 | 0.06438 | 0.00000 | 0.00000 | 0.00000 | 0.00000 | -0.01000 | 0.08438 |
+| observation-only tokens | turn-adjacent | 971 | 16507 | 3936 | 0.23844 | 0.42225 | 0.00000 | 0.00000 | 0.00000 | 0.00000 | -0.01499 | -0.00051 |
+| observation-only tokens | turn | 691 | 0 | 0 | nan | nan | nan | nan | nan | nan | nan | nan |
+
+Nonturn groups are exclusive: turn-adjacent means the preceding or following incoming pair is a turn; forward/no-op exclude those pairs. Actual turn pairs carry state but have no new measurement and are excluded from detection denominators. Near (+1,0) and near zero mean Euclidean radius .25. Nulls use immediate measured velocities and the original alarm definition; K3D-v uses locked/evidenced recurrent velocities, as in the gate. `evidenced_fraction` counts selected evidence >1e-6; `locked_fraction` counts active locks among nominal alarms. Pre-search agreement alarms need not survive mask-mode search confirmation or mode selection. Near support is cone∩{rel_x≤6}, far is cone∩{rel_x≥7}; each support reruns the complete recurrence. No new acceptance criterion.
+
+| source | axis | lo | hi | count | fraction |
+| --- | --- | --- | --- | --- | --- |
+| observation-only tokens | vx | -inf | -1.50000 | 0 | 0.00000 |
+| observation-only tokens | vx | -1.50000 | -1.00000 | 0 | 0.00000 |
+| observation-only tokens | vx | -1.00000 | -0.50000 | 1642 | 0.23612 |
+| observation-only tokens | vx | -0.50000 | 0.00000 | 1289 | 0.18536 |
+| observation-only tokens | vx | 0.00000 | 0.50000 | 1724 | 0.24791 |
+| observation-only tokens | vx | 0.50000 | 1.00000 | 2299 | 0.33060 |
+| observation-only tokens | vx | 1.00000 | 1.50000 | 0 | 0.00000 |
+| observation-only tokens | vx | 1.50000 | inf | 0 | 0.00000 |
+| observation-only tokens | vy | -inf | -1.50000 | 0 | 0.00000 |
+| observation-only tokens | vy | -1.50000 | -1.00000 | 0 | 0.00000 |
+| observation-only tokens | vy | -1.00000 | -0.50000 | 1797 | 0.25841 |
+| observation-only tokens | vy | -0.50000 | 0.00000 | 1893 | 0.27222 |
+| observation-only tokens | vy | 0.00000 | 0.50000 | 1726 | 0.24820 |
+| observation-only tokens | vy | 0.50000 | 1.00000 | 1538 | 0.22117 |
+| observation-only tokens | vy | 1.00000 | 1.50000 | 0 | 0.00000 |
+| observation-only tokens | vy | 1.50000 | inf | 0 | 0.00000 |
+
+Full action-conditioned 2D velocity histogram: `results/followup_breakdown_k3d_null_noblocks_mask_near_histogram.csv`; half-open bins include under/overflow.
+
+
+<!-- followup:breakdown-k3d_null_noblocks-mask-far -->
+### 2. Alarm breakdown — observation-only tokens, k3d_null_noblocks, mask, far support
+
+| source | action | steps | node_steps | detections | node_rate | step_rate | evidenced_fraction | locked_fraction | near_forward_fraction | near_zero_fraction | mean_vx | mean_vy |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| observation-only tokens | all | 6259 | 106403 | 14688 | 0.13804 | 0.49688 | 0.05590 | 0.00197 | 0.02090 | 0.13337 | 0.16009 | 0.04236 |
+| observation-only tokens | forward | 3828 | 65076 | 10286 | 0.15806 | 0.64080 | 0.01342 | 0.00000 | 0.02421 | 0.11015 | 0.22172 | 0.06423 |
+| observation-only tokens | no-op | 1460 | 24820 | 655 | 0.02639 | 0.07740 | 0.09924 | 0.00000 | 0.01832 | 0.20916 | -0.00581 | -0.04876 |
+| observation-only tokens | turn-adjacent | 971 | 16507 | 3747 | 0.22699 | 0.56025 | 0.16493 | 0.00774 | 0.01228 | 0.18388 | 0.01992 | -0.00176 |
+| observation-only tokens | turn | 691 | 0 | 0 | nan | nan | nan | nan | nan | nan | nan | nan |
+
+Nonturn groups are exclusive: turn-adjacent means the preceding or following incoming pair is a turn; forward/no-op exclude those pairs. Actual turn pairs carry state but have no new measurement and are excluded from detection denominators. Near (+1,0) and near zero mean Euclidean radius .25. Nulls use immediate measured velocities and the original alarm definition; K3D-v uses locked/evidenced recurrent velocities, as in the gate. `evidenced_fraction` counts selected evidence >1e-6; `locked_fraction` counts active locks among nominal alarms. Pre-search agreement alarms need not survive mask-mode search confirmation or mode selection. Near support is cone∩{rel_x≤6}, far is cone∩{rel_x≥7}; each support reruns the complete recurrence. No new acceptance criterion.
+
+| source | axis | lo | hi | count | fraction |
+| --- | --- | --- | --- | --- | --- |
+| observation-only tokens | vx | -inf | -1.50000 | 0 | 0.00000 |
+| observation-only tokens | vx | -1.50000 | -1.00000 | 369 | 0.02512 |
+| observation-only tokens | vx | -1.00000 | -0.50000 | 1541 | 0.10492 |
+| observation-only tokens | vx | -0.50000 | 0.00000 | 3547 | 0.24149 |
+| observation-only tokens | vx | 0.00000 | 0.50000 | 5110 | 0.34790 |
+| observation-only tokens | vx | 0.50000 | 1.00000 | 3017 | 0.20541 |
+| observation-only tokens | vx | 1.00000 | 1.50000 | 1104 | 0.07516 |
+| observation-only tokens | vx | 1.50000 | inf | 0 | 0.00000 |
+| observation-only tokens | vy | -inf | -1.50000 | 0 | 0.00000 |
+| observation-only tokens | vy | -1.50000 | -1.00000 | 448 | 0.03050 |
+| observation-only tokens | vy | -1.00000 | -0.50000 | 2240 | 0.15251 |
+| observation-only tokens | vy | -0.50000 | 0.00000 | 4086 | 0.27819 |
+| observation-only tokens | vy | 0.00000 | 0.50000 | 4724 | 0.32162 |
+| observation-only tokens | vy | 0.50000 | 1.00000 | 2800 | 0.19063 |
+| observation-only tokens | vy | 1.00000 | 1.50000 | 390 | 0.02655 |
+| observation-only tokens | vy | 1.50000 | inf | 0 | 0.00000 |
+
+Full action-conditioned 2D velocity histogram: `results/followup_breakdown_k3d_null_noblocks_mask_far_histogram.csv`; half-open bins include under/overflow.
+
+
+<!-- followup:breakdown-k3d_v_validation-subtract-all -->
+### 2. Locked breakdown — observation-only tokens, k3d_v_validation, subtract, all support
+
+| source | action | steps | node_steps | detections | node_rate | step_rate | evidenced_fraction | locked_fraction | near_forward_fraction | near_zero_fraction | mean_vx | mean_vy |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| observation-only tokens | all | 25108 | 426836 | 18161 | 0.04255 | 0.27095 | 1.00000 | 1.00000 | 0.35290 | 0.00066 | 0.86978 | 0.02773 |
+| observation-only tokens | forward | 15554 | 264418 | 15150 | 0.05730 | 0.35843 | 1.00000 | 1.00000 | 0.37835 | 0.00000 | 0.95195 | 0.03311 |
+| observation-only tokens | no-op | 5655 | 96135 | 1096 | 0.01140 | 0.10203 | 1.00000 | 1.00000 | 0.05292 | 0.00639 | -0.17346 | 0.00414 |
+| observation-only tokens | turn-adjacent | 3899 | 66283 | 1915 | 0.02889 | 0.16697 | 1.00000 | 1.00000 | 0.32324 | 0.00261 | 0.81674 | -0.00131 |
+| observation-only tokens | turn | 2692 | 0 | 0 | nan | nan | nan | nan | nan | nan | nan | nan |
+
+Nonturn groups are exclusive: turn-adjacent means the preceding or following incoming pair is a turn; forward/no-op exclude those pairs. Actual turn pairs carry state but have no new measurement and are excluded from detection denominators. Near (+1,0) and near zero mean Euclidean radius .25. Nulls use immediate measured velocities and the original alarm definition; K3D-v uses locked/evidenced recurrent velocities, as in the gate. `evidenced_fraction` counts selected evidence >1e-6; `locked_fraction` counts active locks among nominal alarms. Pre-search agreement alarms need not survive mask-mode search confirmation or mode selection. Near support is cone∩{rel_x≤6}, far is cone∩{rel_x≥7}; each support reruns the complete recurrence. No new acceptance criterion.
+
+| source | axis | lo | hi | count | fraction |
+| --- | --- | --- | --- | --- | --- |
+| observation-only tokens | vx | -inf | -1.50000 | 0 | 0.00000 |
+| observation-only tokens | vx | -1.50000 | -1.00000 | 278 | 0.01531 |
+| observation-only tokens | vx | -1.00000 | -0.50000 | 240 | 0.01322 |
+| observation-only tokens | vx | -0.50000 | 0.00000 | 545 | 0.03001 |
+| observation-only tokens | vx | 0.00000 | 0.50000 | 505 | 0.02781 |
+| observation-only tokens | vx | 0.50000 | 1.00000 | 7324 | 0.40328 |
+| observation-only tokens | vx | 1.00000 | 1.50000 | 9269 | 0.51038 |
+| observation-only tokens | vx | 1.50000 | inf | 0 | 0.00000 |
+| observation-only tokens | vy | -inf | -1.50000 | 0 | 0.00000 |
+| observation-only tokens | vy | -1.50000 | -1.00000 | 651 | 0.03585 |
+| observation-only tokens | vy | -1.00000 | -0.50000 | 2647 | 0.14575 |
+| observation-only tokens | vy | -0.50000 | 0.00000 | 5775 | 0.31799 |
+| observation-only tokens | vy | 0.00000 | 0.50000 | 5014 | 0.27609 |
+| observation-only tokens | vy | 0.50000 | 1.00000 | 3260 | 0.17951 |
+| observation-only tokens | vy | 1.00000 | 1.50000 | 814 | 0.04482 |
+| observation-only tokens | vy | 1.50000 | inf | 0 | 0.00000 |
+
+Full action-conditioned 2D velocity histogram: `results/followup_breakdown_k3d_v_validation_subtract_all_histogram.csv`; half-open bins include under/overflow.
+
+
+<!-- followup:breakdown-k3d_v_validation-subtract-near -->
+### 2. Locked breakdown — observation-only tokens, k3d_v_validation, subtract, near support
+
+| source | action | steps | node_steps | detections | node_rate | step_rate | evidenced_fraction | locked_fraction | near_forward_fraction | near_zero_fraction | mean_vx | mean_vy |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| observation-only tokens | all | 25108 | 426836 | 7838 | 0.01836 | 0.22407 | 1.00000 | 1.00000 | 0.09556 | 0.03662 | 0.34545 | -0.00025 |
+| observation-only tokens | forward | 15554 | 264418 | 5692 | 0.02153 | 0.26662 | 1.00000 | 1.00000 | 0.11033 | 0.04339 | 0.44021 | 0.00906 |
+| observation-only tokens | no-op | 5655 | 96135 | 1410 | 0.01467 | 0.16658 | 1.00000 | 1.00000 | 0.04468 | 0.02199 | 0.05690 | -0.01909 |
+| observation-only tokens | turn-adjacent | 3899 | 66283 | 736 | 0.01110 | 0.13773 | 1.00000 | 1.00000 | 0.07880 | 0.01223 | 0.16538 | -0.03611 |
+| observation-only tokens | turn | 2692 | 0 | 0 | nan | nan | nan | nan | nan | nan | nan | nan |
+
+Nonturn groups are exclusive: turn-adjacent means the preceding or following incoming pair is a turn; forward/no-op exclude those pairs. Actual turn pairs carry state but have no new measurement and are excluded from detection denominators. Near (+1,0) and near zero mean Euclidean radius .25. Nulls use immediate measured velocities and the original alarm definition; K3D-v uses locked/evidenced recurrent velocities, as in the gate. `evidenced_fraction` counts selected evidence >1e-6; `locked_fraction` counts active locks among nominal alarms. Pre-search agreement alarms need not survive mask-mode search confirmation or mode selection. Near support is cone∩{rel_x≤6}, far is cone∩{rel_x≥7}; each support reruns the complete recurrence. No new acceptance criterion.
+
+| source | axis | lo | hi | count | fraction |
+| --- | --- | --- | --- | --- | --- |
+| observation-only tokens | vx | -inf | -1.50000 | 0 | 0.00000 |
+| observation-only tokens | vx | -1.50000 | -1.00000 | 90 | 0.01148 |
+| observation-only tokens | vx | -1.00000 | -0.50000 | 1051 | 0.13409 |
+| observation-only tokens | vx | -0.50000 | 0.00000 | 709 | 0.09046 |
+| observation-only tokens | vx | 0.00000 | 0.50000 | 1759 | 0.22442 |
+| observation-only tokens | vx | 0.50000 | 1.00000 | 3906 | 0.49834 |
+| observation-only tokens | vx | 1.00000 | 1.50000 | 323 | 0.04121 |
+| observation-only tokens | vx | 1.50000 | inf | 0 | 0.00000 |
+| observation-only tokens | vy | -inf | -1.50000 | 0 | 0.00000 |
+| observation-only tokens | vy | -1.50000 | -1.00000 | 179 | 0.02284 |
+| observation-only tokens | vy | -1.00000 | -0.50000 | 1937 | 0.24713 |
+| observation-only tokens | vy | -0.50000 | 0.00000 | 1868 | 0.23833 |
+| observation-only tokens | vy | 0.00000 | 0.50000 | 1776 | 0.22659 |
+| observation-only tokens | vy | 0.50000 | 1.00000 | 1894 | 0.24164 |
+| observation-only tokens | vy | 1.00000 | 1.50000 | 184 | 0.02348 |
+| observation-only tokens | vy | 1.50000 | inf | 0 | 0.00000 |
+
+Full action-conditioned 2D velocity histogram: `results/followup_breakdown_k3d_v_validation_subtract_near_histogram.csv`; half-open bins include under/overflow.
+
+
+<!-- followup:breakdown-k3d_v_validation-subtract-far -->
+### 2. Locked breakdown — observation-only tokens, k3d_v_validation, subtract, far support
+
+| source | action | steps | node_steps | detections | node_rate | step_rate | evidenced_fraction | locked_fraction | near_forward_fraction | near_zero_fraction | mean_vx | mean_vy |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| observation-only tokens | all | 25108 | 426836 | 18805 | 0.04406 | 0.27923 | 1.00000 | 1.00000 | 0.31284 | 0.00096 | 0.89736 | 0.02132 |
+| observation-only tokens | forward | 15554 | 264418 | 15933 | 0.06026 | 0.37682 | 1.00000 | 1.00000 | 0.33107 | 0.00000 | 0.97260 | 0.02399 |
+| observation-only tokens | no-op | 5655 | 96135 | 948 | 0.00986 | 0.09001 | 1.00000 | 1.00000 | 0.04958 | 0.01477 | -0.24956 | -0.01548 |
+| observation-only tokens | turn-adjacent | 3899 | 66283 | 1924 | 0.02903 | 0.16440 | 1.00000 | 1.00000 | 0.29158 | 0.00208 | 0.83947 | 0.01726 |
+| observation-only tokens | turn | 2692 | 0 | 0 | nan | nan | nan | nan | nan | nan | nan | nan |
+
+Nonturn groups are exclusive: turn-adjacent means the preceding or following incoming pair is a turn; forward/no-op exclude those pairs. Actual turn pairs carry state but have no new measurement and are excluded from detection denominators. Near (+1,0) and near zero mean Euclidean radius .25. Nulls use immediate measured velocities and the original alarm definition; K3D-v uses locked/evidenced recurrent velocities, as in the gate. `evidenced_fraction` counts selected evidence >1e-6; `locked_fraction` counts active locks among nominal alarms. Pre-search agreement alarms need not survive mask-mode search confirmation or mode selection. Near support is cone∩{rel_x≤6}, far is cone∩{rel_x≥7}; each support reruns the complete recurrence. No new acceptance criterion.
+
+| source | axis | lo | hi | count | fraction |
+| --- | --- | --- | --- | --- | --- |
+| observation-only tokens | vx | -inf | -1.50000 | 0 | 0.00000 |
+| observation-only tokens | vx | -1.50000 | -1.00000 | 284 | 0.01510 |
+| observation-only tokens | vx | -1.00000 | -0.50000 | 219 | 0.01165 |
+| observation-only tokens | vx | -0.50000 | 0.00000 | 501 | 0.02664 |
+| observation-only tokens | vx | 0.00000 | 0.50000 | 319 | 0.01696 |
+| observation-only tokens | vx | 0.50000 | 1.00000 | 6946 | 0.36937 |
+| observation-only tokens | vx | 1.00000 | 1.50000 | 10536 | 0.56028 |
+| observation-only tokens | vx | 1.50000 | inf | 0 | 0.00000 |
+| observation-only tokens | vy | -inf | -1.50000 | 0 | 0.00000 |
+| observation-only tokens | vy | -1.50000 | -1.00000 | 600 | 0.03191 |
+| observation-only tokens | vy | -1.00000 | -0.50000 | 3166 | 0.16836 |
+| observation-only tokens | vy | -0.50000 | 0.00000 | 5612 | 0.29843 |
+| observation-only tokens | vy | 0.00000 | 0.50000 | 4983 | 0.26498 |
+| observation-only tokens | vy | 0.50000 | 1.00000 | 3712 | 0.19739 |
+| observation-only tokens | vy | 1.00000 | 1.50000 | 732 | 0.03893 |
+| observation-only tokens | vy | 1.50000 | inf | 0 | 0.00000 |
+
+Full action-conditioned 2D velocity histogram: `results/followup_breakdown_k3d_v_validation_subtract_far_histogram.csv`; half-open bins include under/overflow.
+
+
+<!-- followup:breakdown-k3d_v_validation-mask-all -->
+### 2. Locked breakdown — observation-only tokens, k3d_v_validation, mask, all support
+
+| source | action | steps | node_steps | detections | node_rate | step_rate | evidenced_fraction | locked_fraction | near_forward_fraction | near_zero_fraction | mean_vx | mean_vy |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| observation-only tokens | all | 25108 | 426836 | 1358 | 0.00318 | 0.02704 | 0.99190 | 1.00000 | 0.04492 | 0.55228 | 0.01609 | 0.01663 |
+| observation-only tokens | forward | 15554 | 264418 | 239 | 0.00090 | 0.01196 | 0.99582 | 1.00000 | 0.17573 | 0.03766 | 0.11732 | 0.10394 |
+| observation-only tokens | no-op | 5655 | 96135 | 490 | 0.00510 | 0.04810 | 0.98367 | 1.00000 | 0.01837 | 0.44898 | -0.01149 | -0.02346 |
+| observation-only tokens | turn-adjacent | 3899 | 66283 | 629 | 0.00949 | 0.05668 | 0.99682 | 1.00000 | 0.01590 | 0.82830 | -0.00089 | 0.01469 |
+| observation-only tokens | turn | 2692 | 0 | 0 | nan | nan | nan | nan | nan | nan | nan | nan |
+
+Nonturn groups are exclusive: turn-adjacent means the preceding or following incoming pair is a turn; forward/no-op exclude those pairs. Actual turn pairs carry state but have no new measurement and are excluded from detection denominators. Near (+1,0) and near zero mean Euclidean radius .25. Nulls use immediate measured velocities and the original alarm definition; K3D-v uses locked/evidenced recurrent velocities, as in the gate. `evidenced_fraction` counts selected evidence >1e-6; `locked_fraction` counts active locks among nominal alarms. Pre-search agreement alarms need not survive mask-mode search confirmation or mode selection. Near support is cone∩{rel_x≤6}, far is cone∩{rel_x≥7}; each support reruns the complete recurrence. No new acceptance criterion.
+
+| source | axis | lo | hi | count | fraction |
+| --- | --- | --- | --- | --- | --- |
+| observation-only tokens | vx | -inf | -1.50000 | 0 | 0.00000 |
+| observation-only tokens | vx | -1.50000 | -1.00000 | 17 | 0.01252 |
+| observation-only tokens | vx | -1.00000 | -0.50000 | 90 | 0.06627 |
+| observation-only tokens | vx | -0.50000 | 0.00000 | 544 | 0.40059 |
+| observation-only tokens | vx | 0.00000 | 0.50000 | 576 | 0.42415 |
+| observation-only tokens | vx | 0.50000 | 1.00000 | 111 | 0.08174 |
+| observation-only tokens | vx | 1.00000 | 1.50000 | 20 | 0.01473 |
+| observation-only tokens | vx | 1.50000 | inf | 0 | 0.00000 |
+| observation-only tokens | vy | -inf | -1.50000 | 0 | 0.00000 |
+| observation-only tokens | vy | -1.50000 | -1.00000 | 27 | 0.01988 |
+| observation-only tokens | vy | -1.00000 | -0.50000 | 136 | 0.10015 |
+| observation-only tokens | vy | -0.50000 | 0.00000 | 524 | 0.38586 |
+| observation-only tokens | vy | 0.00000 | 0.50000 | 495 | 0.36451 |
+| observation-only tokens | vy | 0.50000 | 1.00000 | 154 | 0.11340 |
+| observation-only tokens | vy | 1.00000 | 1.50000 | 22 | 0.01620 |
+| observation-only tokens | vy | 1.50000 | inf | 0 | 0.00000 |
+
+Full action-conditioned 2D velocity histogram: `results/followup_breakdown_k3d_v_validation_mask_all_histogram.csv`; half-open bins include under/overflow.
+
+
+<!-- followup:breakdown-k3d_v_validation-mask-near -->
+### 2. Locked breakdown — observation-only tokens, k3d_v_validation, mask, near support
+
+| source | action | steps | node_steps | detections | node_rate | step_rate | evidenced_fraction | locked_fraction | near_forward_fraction | near_zero_fraction | mean_vx | mean_vy |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| observation-only tokens | all | 25108 | 426836 | 0 | 0.00000 | 0.00000 | nan | nan | nan | nan | nan | nan |
+| observation-only tokens | forward | 15554 | 264418 | 0 | 0.00000 | 0.00000 | nan | nan | nan | nan | nan | nan |
+| observation-only tokens | no-op | 5655 | 96135 | 0 | 0.00000 | 0.00000 | nan | nan | nan | nan | nan | nan |
+| observation-only tokens | turn-adjacent | 3899 | 66283 | 0 | 0.00000 | 0.00000 | nan | nan | nan | nan | nan | nan |
+| observation-only tokens | turn | 2692 | 0 | 0 | nan | nan | nan | nan | nan | nan | nan | nan |
+
+Nonturn groups are exclusive: turn-adjacent means the preceding or following incoming pair is a turn; forward/no-op exclude those pairs. Actual turn pairs carry state but have no new measurement and are excluded from detection denominators. Near (+1,0) and near zero mean Euclidean radius .25. Nulls use immediate measured velocities and the original alarm definition; K3D-v uses locked/evidenced recurrent velocities, as in the gate. `evidenced_fraction` counts selected evidence >1e-6; `locked_fraction` counts active locks among nominal alarms. Pre-search agreement alarms need not survive mask-mode search confirmation or mode selection. Near support is cone∩{rel_x≤6}, far is cone∩{rel_x≥7}; each support reruns the complete recurrence. No new acceptance criterion.
+
+| source | axis | lo | hi | count | fraction |
+| --- | --- | --- | --- | --- | --- |
+| observation-only tokens | vx | -inf | -1.50000 | 0 | 0.00000 |
+| observation-only tokens | vx | -1.50000 | -1.00000 | 0 | 0.00000 |
+| observation-only tokens | vx | -1.00000 | -0.50000 | 0 | 0.00000 |
+| observation-only tokens | vx | -0.50000 | 0.00000 | 0 | 0.00000 |
+| observation-only tokens | vx | 0.00000 | 0.50000 | 0 | 0.00000 |
+| observation-only tokens | vx | 0.50000 | 1.00000 | 0 | 0.00000 |
+| observation-only tokens | vx | 1.00000 | 1.50000 | 0 | 0.00000 |
+| observation-only tokens | vx | 1.50000 | inf | 0 | 0.00000 |
+| observation-only tokens | vy | -inf | -1.50000 | 0 | 0.00000 |
+| observation-only tokens | vy | -1.50000 | -1.00000 | 0 | 0.00000 |
+| observation-only tokens | vy | -1.00000 | -0.50000 | 0 | 0.00000 |
+| observation-only tokens | vy | -0.50000 | 0.00000 | 0 | 0.00000 |
+| observation-only tokens | vy | 0.00000 | 0.50000 | 0 | 0.00000 |
+| observation-only tokens | vy | 0.50000 | 1.00000 | 0 | 0.00000 |
+| observation-only tokens | vy | 1.00000 | 1.50000 | 0 | 0.00000 |
+| observation-only tokens | vy | 1.50000 | inf | 0 | 0.00000 |
+
+Full action-conditioned 2D velocity histogram: `results/followup_breakdown_k3d_v_validation_mask_near_histogram.csv`; half-open bins include under/overflow.
+
+
+<!-- followup:breakdown-k3d_v_validation-mask-far -->
+### 2. Locked breakdown — observation-only tokens, k3d_v_validation, mask, far support
+
+| source | action | steps | node_steps | detections | node_rate | step_rate | evidenced_fraction | locked_fraction | near_forward_fraction | near_zero_fraction | mean_vx | mean_vy |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| observation-only tokens | all | 25108 | 426836 | 2888 | 0.00677 | 0.04206 | 0.97645 | 1.00000 | 0.02078 | 0.73650 | 0.01125 | 0.00272 |
+| observation-only tokens | forward | 15554 | 264418 | 301 | 0.00114 | 0.01279 | 1.00000 | 1.00000 | 0.11628 | 0.28571 | 0.16673 | 0.00522 |
+| observation-only tokens | no-op | 5655 | 96135 | 1006 | 0.01046 | 0.07975 | 0.98608 | 1.00000 | 0.01690 | 0.64712 | -0.03078 | 0.00758 |
+| observation-only tokens | turn-adjacent | 3899 | 66283 | 1581 | 0.02385 | 0.10413 | 0.96584 | 1.00000 | 0.00506 | 0.87919 | 0.00839 | -0.00085 |
+| observation-only tokens | turn | 2692 | 0 | 0 | nan | nan | nan | nan | nan | nan | nan | nan |
+
+Nonturn groups are exclusive: turn-adjacent means the preceding or following incoming pair is a turn; forward/no-op exclude those pairs. Actual turn pairs carry state but have no new measurement and are excluded from detection denominators. Near (+1,0) and near zero mean Euclidean radius .25. Nulls use immediate measured velocities and the original alarm definition; K3D-v uses locked/evidenced recurrent velocities, as in the gate. `evidenced_fraction` counts selected evidence >1e-6; `locked_fraction` counts active locks among nominal alarms. Pre-search agreement alarms need not survive mask-mode search confirmation or mode selection. Near support is cone∩{rel_x≤6}, far is cone∩{rel_x≥7}; each support reruns the complete recurrence. No new acceptance criterion.
+
+| source | axis | lo | hi | count | fraction |
+| --- | --- | --- | --- | --- | --- |
+| observation-only tokens | vx | -inf | -1.50000 | 0 | 0.00000 |
+| observation-only tokens | vx | -1.50000 | -1.00000 | 22 | 0.00762 |
+| observation-only tokens | vx | -1.00000 | -0.50000 | 75 | 0.02597 |
+| observation-only tokens | vx | -0.50000 | 0.00000 | 1370 | 0.47438 |
+| observation-only tokens | vx | 0.00000 | 0.50000 | 1286 | 0.44529 |
+| observation-only tokens | vx | 0.50000 | 1.00000 | 85 | 0.02943 |
+| observation-only tokens | vx | 1.00000 | 1.50000 | 50 | 0.01731 |
+| observation-only tokens | vx | 1.50000 | inf | 0 | 0.00000 |
+| observation-only tokens | vy | -inf | -1.50000 | 0 | 0.00000 |
+| observation-only tokens | vy | -1.50000 | -1.00000 | 31 | 0.01073 |
+| observation-only tokens | vy | -1.00000 | -0.50000 | 110 | 0.03809 |
+| observation-only tokens | vy | -0.50000 | 0.00000 | 1354 | 0.46884 |
+| observation-only tokens | vy | 0.00000 | 0.50000 | 1245 | 0.43109 |
+| observation-only tokens | vy | 0.50000 | 1.00000 | 113 | 0.03913 |
+| observation-only tokens | vy | 1.00000 | 1.50000 | 35 | 0.01212 |
+| observation-only tokens | vy | 1.50000 | inf | 0 | 0.00000 |
+
+Full action-conditioned 2D velocity histogram: `results/followup_breakdown_k3d_v_validation_mask_far_histogram.csv`; half-open bins include under/overflow.
+
+
+<!-- followup:stationary-content -->
+### 2. Direct cone-stationarity check — observation-only tokens
+
+| source | region | pairs | same_cell_ssd | ego_ssd | ratio_of_means | same_cell_better |
+| --- | --- | --- | --- | --- | --- | --- |
+| observation-only tokens | all | 3939 | 0.96822 | 0.71979 | 1.34515 | 0.27215 |
+| observation-only tokens | near | 3939 | 1.00040 | 1.19964 | 0.83392 | 0.84336 |
+| observation-only tokens | far | 3939 | 0.94985 | 0.60574 | 1.56809 | 0.39731 |
+
+K=8, empty-room forward pairs only. SSD sums channels then averages shared valid cells. Both hypotheses use identical overlap, excluding newly visible edge cells. Same-cell matches imply apparent intrinsic (+1,0) after adding forward ego motion. This identifies cone-stationary imprint structure; the test does not semantically separate walls from floor texture.
+
+
+<!-- followup:patch-tokens-8 -->
+### 3. Direct block-motion visibility — observation-only tokens, K=8
+
+| source | k | group | bin | pairs | usable | median | p90 | within_025 | boundary_fraction |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| observation-only tokens | 8 | all | all | 44990 | 44990 | 0.63751 | 1.73585 | 0.12383 | 0.15083 |
+| observation-only tokens | 8 | speed | .25-.5 | 14738 | 14738 | 0.53849 | 1.55214 | 0.14860 | 0.12634 |
+| observation-only tokens | 8 | speed | .5-.75 | 14612 | 14612 | 0.64991 | 1.70457 | 0.09088 | 0.14495 |
+| observation-only tokens | 8 | speed | .75-1 | 15640 | 15640 | 0.71494 | 1.92561 | 0.13127 | 0.17941 |
+| observation-only tokens | 8 | distance | [1,5) | 8764 | 8764 | 0.63813 | 1.59491 | 0.10714 | 0.14628 |
+| observation-only tokens | 8 | distance | [5,9) | 17263 | 17263 | 0.63739 | 1.75952 | 0.13393 | 0.15664 |
+| observation-only tokens | 8 | distance | [9,13) | 15683 | 15683 | 0.64001 | 1.79151 | 0.12294 | 0.14697 |
+| observation-only tokens | 8 | distance | [13,17) | 3280 | 3280 | 0.62865 | 1.68311 | 0.11951 | 0.15091 |
+| observation-only tokens | 8 | support_distance | rounded_x<=6 | 14834 | 14834 | 0.67921 | 1.70735 | 0.10314 | 0.16091 |
+| observation-only tokens | 8 | support_distance | rounded_x>=7 | 30156 | 30156 | 0.61816 | 1.75156 | 0.13400 | 0.14587 |
+
+All jointly cone-visible block/nonturn pairs from 200 clips, with the original no-occlusion-filter convention. Previous 3×3 patch is centred at the rounded previous block cell. Search uses a half-cell grid in ±1.5 intrinsic cells around the ego-transported centre, uniform patch SSD, exact Fourier interpolation on the zero-filled 33×33 torus, and axiswise parabolic refinement as in LocalSearch. Shared bilinear cone validity normalizes SSD; at least 4.5 of nine cells are required. Unusable pairs count as infinite error and are included in the within-.25 denominator. Boundary minima are retained and reported. Distance is previous rel_x; K=256 is raw tokens, without projection. This is an oracle-location visibility diagnostic, with no preregistered pass threshold; it is not a mathematical upper bound on every possible estimator.
+
+
+<!-- followup:patch-tokens-32 -->
+### 3. Direct block-motion visibility — observation-only tokens, K=32
+
+| source | k | group | bin | pairs | usable | median | p90 | within_025 | boundary_fraction |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| observation-only tokens | 32 | all | all | 44990 | 44990 | 0.64170 | 1.77453 | 0.12152 | 0.15870 |
+| observation-only tokens | 32 | speed | .25-.5 | 14738 | 14738 | 0.54077 | 1.59788 | 0.14324 | 0.13726 |
+| observation-only tokens | 32 | speed | .5-.75 | 14612 | 14612 | 0.65214 | 1.73757 | 0.09095 | 0.15590 |
+| observation-only tokens | 32 | speed | .75-1 | 15640 | 15640 | 0.71738 | 1.95220 | 0.12960 | 0.18152 |
+| observation-only tokens | 32 | distance | [1,5) | 8764 | 8764 | 0.62167 | 1.49728 | 0.11285 | 0.12414 |
+| observation-only tokens | 32 | distance | [5,9) | 17263 | 17263 | 0.64238 | 1.79644 | 0.12964 | 0.16614 |
+| observation-only tokens | 32 | distance | [9,13) | 15683 | 15683 | 0.65277 | 1.86542 | 0.11898 | 0.16808 |
+| observation-only tokens | 32 | distance | [13,17) | 3280 | 3280 | 0.64715 | 1.77868 | 0.11402 | 0.16707 |
+| observation-only tokens | 32 | support_distance | rounded_x<=6 | 14834 | 14834 | 0.66636 | 1.66814 | 0.10584 | 0.15040 |
+| observation-only tokens | 32 | support_distance | rounded_x>=7 | 30156 | 30156 | 0.62647 | 1.82022 | 0.12923 | 0.16279 |
+
+All jointly cone-visible block/nonturn pairs from 200 clips, with the original no-occlusion-filter convention. Previous 3×3 patch is centred at the rounded previous block cell. Search uses a half-cell grid in ±1.5 intrinsic cells around the ego-transported centre, uniform patch SSD, exact Fourier interpolation on the zero-filled 33×33 torus, and axiswise parabolic refinement as in LocalSearch. Shared bilinear cone validity normalizes SSD; at least 4.5 of nine cells are required. Unusable pairs count as infinite error and are included in the within-.25 denominator. Boundary minima are retained and reported. Distance is previous rel_x; K=256 is raw tokens, without projection. This is an oracle-location visibility diagnostic, with no preregistered pass threshold; it is not a mathematical upper bound on every possible estimator.
+
+
+<!-- followup:patch-h_new-8 -->
+### 3. Direct block-motion visibility — observation-only h_new, K=8
+
+| source | k | group | bin | pairs | usable | median | p90 | within_025 | boundary_fraction |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| observation-only h_new | 8 | all | all | 44990 | 44990 | 0.61373 | 1.74950 | 0.13732 | 0.16561 |
+| observation-only h_new | 8 | speed | .25-.5 | 14738 | 14738 | 0.51728 | 1.59762 | 0.16271 | 0.13889 |
+| observation-only h_new | 8 | speed | .5-.75 | 14612 | 14612 | 0.62975 | 1.72212 | 0.10881 | 0.16131 |
+| observation-only h_new | 8 | speed | .75-1 | 15640 | 15640 | 0.69133 | 1.92384 | 0.14003 | 0.19482 |
+| observation-only h_new | 8 | distance | [1,5) | 8764 | 8764 | 0.61452 | 1.51274 | 0.11445 | 0.13921 |
+| observation-only h_new | 8 | distance | [5,9) | 17263 | 17263 | 0.60028 | 1.75049 | 0.15113 | 0.16596 |
+| observation-only h_new | 8 | distance | [9,13) | 15683 | 15683 | 0.62371 | 1.85692 | 0.13849 | 0.17815 |
+| observation-only h_new | 8 | distance | [13,17) | 3280 | 3280 | 0.63463 | 1.75222 | 0.12012 | 0.17439 |
+| observation-only h_new | 8 | support_distance | rounded_x<=6 | 14834 | 14834 | 0.64861 | 1.64179 | 0.11217 | 0.15909 |
+| observation-only h_new | 8 | support_distance | rounded_x>=7 | 30156 | 30156 | 0.59690 | 1.80173 | 0.14969 | 0.16882 |
+
+All jointly cone-visible block/nonturn pairs from 200 clips, with the original no-occlusion-filter convention. Previous 3×3 patch is centred at the rounded previous block cell. Search uses a half-cell grid in ±1.5 intrinsic cells around the ego-transported centre, uniform patch SSD, exact Fourier interpolation on the zero-filled 33×33 torus, and axiswise parabolic refinement as in LocalSearch. Shared bilinear cone validity normalizes SSD; at least 4.5 of nine cells are required. Unusable pairs count as infinite error and are included in the within-.25 denominator. Boundary minima are retained and reported. Distance is previous rel_x; K=256 is raw tokens, without projection. This is an oracle-location visibility diagnostic, with no preregistered pass threshold; it is not a mathematical upper bound on every possible estimator.
+
+
+<!-- followup:patch-h_new-32 -->
+### 3. Direct block-motion visibility — observation-only h_new, K=32
+
+| source | k | group | bin | pairs | usable | median | p90 | within_025 | boundary_fraction |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| observation-only h_new | 32 | all | all | 44990 | 44990 | 0.61611 | 1.73397 | 0.13385 | 0.15288 |
+| observation-only h_new | 32 | speed | .25-.5 | 14738 | 14738 | 0.51264 | 1.55822 | 0.15864 | 0.13224 |
+| observation-only h_new | 32 | speed | .5-.75 | 14612 | 14612 | 0.63481 | 1.68833 | 0.10553 | 0.15036 |
+| observation-only h_new | 32 | speed | .75-1 | 15640 | 15640 | 0.69510 | 1.91625 | 0.13696 | 0.17468 |
+| observation-only h_new | 32 | distance | [1,5) | 8764 | 8764 | 0.59623 | 1.43372 | 0.12209 | 0.11136 |
+| observation-only h_new | 32 | distance | [5,9) | 17263 | 17263 | 0.61465 | 1.75781 | 0.14302 | 0.15472 |
+| observation-only h_new | 32 | distance | [9,13) | 15683 | 15683 | 0.62672 | 1.85165 | 0.13422 | 0.17101 |
+| observation-only h_new | 32 | distance | [13,17) | 3280 | 3280 | 0.64217 | 1.76124 | 0.11524 | 0.16738 |
+| observation-only h_new | 32 | support_distance | rounded_x<=6 | 14834 | 14834 | 0.64040 | 1.59141 | 0.11366 | 0.13496 |
+| observation-only h_new | 32 | support_distance | rounded_x>=7 | 30156 | 30156 | 0.60272 | 1.80531 | 0.14379 | 0.16169 |
+
+All jointly cone-visible block/nonturn pairs from 200 clips, with the original no-occlusion-filter convention. Previous 3×3 patch is centred at the rounded previous block cell. Search uses a half-cell grid in ±1.5 intrinsic cells around the ego-transported centre, uniform patch SSD, exact Fourier interpolation on the zero-filled 33×33 torus, and axiswise parabolic refinement as in LocalSearch. Shared bilinear cone validity normalizes SSD; at least 4.5 of nine cells are required. Unusable pairs count as infinite error and are included in the within-.25 denominator. Boundary minima are retained and reported. Distance is previous rel_x; K=256 is raw tokens, without projection. This is an oracle-location visibility diagnostic, with no preregistered pass threshold; it is not a mathematical upper bound on every possible estimator.
+
+
+<!-- followup:patch-tokens-256 -->
+### 3. Direct block-motion visibility — observation-only tokens, K=256
+
+| source | k | group | bin | pairs | usable | median | p90 | within_025 | boundary_fraction |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| observation-only tokens | 256 | all | all | 44990 | 44990 | 0.63580 | 1.73459 | 0.12058 | 0.14368 |
+| observation-only tokens | 256 | speed | .25-.5 | 14738 | 14738 | 0.53718 | 1.54527 | 0.14337 | 0.12437 |
+| observation-only tokens | 256 | speed | .5-.75 | 14612 | 14612 | 0.64839 | 1.70292 | 0.08794 | 0.14105 |
+| observation-only tokens | 256 | speed | .75-1 | 15640 | 15640 | 0.70824 | 1.91532 | 0.12960 | 0.16432 |
+| observation-only tokens | 256 | distance | [1,5) | 8764 | 8764 | 0.62369 | 1.49443 | 0.10726 | 0.11547 |
+| observation-only tokens | 256 | distance | [5,9) | 17263 | 17263 | 0.63766 | 1.76226 | 0.13063 | 0.15200 |
+| observation-only tokens | 256 | distance | [9,13) | 15683 | 15683 | 0.64118 | 1.81366 | 0.11879 | 0.14787 |
+| observation-only tokens | 256 | distance | [13,17) | 3280 | 3280 | 0.63896 | 1.74683 | 0.11189 | 0.15518 |
+| observation-only tokens | 256 | support_distance | rounded_x<=6 | 14834 | 14834 | 0.66790 | 1.65522 | 0.10253 | 0.14049 |
+| observation-only tokens | 256 | support_distance | rounded_x>=7 | 30156 | 30156 | 0.62007 | 1.77035 | 0.12946 | 0.14524 |
+
+All jointly cone-visible block/nonturn pairs from 200 clips, with the original no-occlusion-filter convention. Previous 3×3 patch is centred at the rounded previous block cell. Search uses a half-cell grid in ±1.5 intrinsic cells around the ego-transported centre, uniform patch SSD, exact Fourier interpolation on the zero-filled 33×33 torus, and axiswise parabolic refinement as in LocalSearch. Shared bilinear cone validity normalizes SSD; at least 4.5 of nine cells are required. Unusable pairs count as infinite error and are included in the within-.25 denominator. Boundary minima are retained and reported. Distance is previous rel_x; K=256 is raw tokens, without projection. This is an oracle-location visibility diagnostic, with no preregistered pass threshold; it is not a mathematical upper bound on every possible estimator.
+
+
+<!-- followup:patch-verdict -->
+### 3. Verdict — observation-only patches
+
+| source | k | median | p90 | within_025 |
+| --- | --- | --- | --- | --- |
+| observation-only tokens | 8 | 0.63751 | 1.73585 | 0.12383 |
+| observation-only tokens | 32 | 0.64170 | 1.77453 | 0.12152 |
+| observation-only h_new | 8 | 0.61373 | 1.74950 | 0.13732 |
+| observation-only h_new | 32 | 0.61611 | 1.73397 | 0.13385 |
+| observation-only tokens | 256 | 0.63580 | 1.73459 | 0.12058 |
+
+**Weak direct motion visibility under this patch test.** All five configurations use the same 44,990 jointly visible nonturn block pairs, and all pairs have usable support. Removing projection does not rescue tracking: raw-token median 0.63580, p90 1.73459, only 12.06% within .25. The full per-speed and per-distance tables above retain all pairs, including boundary minima. This result shows that oracle-localized 3×3 appearance does not reliably translate with intrinsic block motion; it does not prove that every learned or longer-context estimator must fail. No acceptance threshold was preregistered for this diagnostic. Runtime: 256.06 s in the module, 268.0 s including interpreter/import overhead.
+
+
+<!-- followup:stationary-attribution -->
+### 2. Evidence-localized cone-stationarity — observation-only tokens
+
+| source | subset | region | pairs | evidenced_pairs | mass | same_ssd | ego_ssd | same_to_ego | same_better_mass |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| observation-only tokens | all_alarms | all | 3939 | 1666 | 32301.70946 | 0.02537 | 0.53040 | 0.04782 | 0.98972 |
+| observation-only tokens | all_alarms | near | 3939 | 1499 | 2885.39227 | 0.03530 | 1.29743 | 0.02721 | 0.98895 |
+| observation-only tokens | all_alarms | far | 3939 | 1666 | 29416.31711 | 0.02439 | 0.45516 | 0.05359 | 0.98979 |
+| observation-only tokens | near_ego_forward | all | 3939 | 1357 | 22505.29756 | 0.01697 | 0.54182 | 0.03132 | 0.99416 |
+| observation-only tokens | near_ego_forward | near | 3939 | 1144 | 2131.95466 | 0.02464 | 0.97634 | 0.02524 | 0.99479 |
+| observation-only tokens | near_ego_forward | far | 3939 | 1357 | 20373.34281 | 0.01617 | 0.49634 | 0.03257 | 0.99409 |
+
+Additional attribution check because whole-region SSD did not establish global far-field stationarity. All 3,939 empty-room forward pairs are re-evaluated at their cached subtraction priors, sigma=1/K=8. A local observer returns the production `two_modes` result unchanged and copies its selected pixel weights. We compare same-cell and ego-transported **plain** imprint SSD at those selected alarm-evidence locations, on common valid support. `near_ego_forward` restricts alarm velocities to radius .25 around (+1,0). This distinguishes selected nuisance cells from the rest of the far field; it does not distinguish walls, floor texture, or learned positional features. The maximum reconstructed/cached velocity component difference was 9e-06; runtime 31.48 s.
+
+
+<!-- followup:breakdown-verdict -->
+### 2. Verdict — observation-only tokens
+
+**Yes: the original subtraction alarms are strongly explained by cone-stationary imprint content.** Empty-room forward/non-adjacent no-op alarm rates are 7.20%/0%. Alarm mean velocity is (0.97454, 0.00796), with 52.89% within .25 of (+1,0). Near-only support reduces the all-nonturn rate from 4.75% to 1.71%, while far-only retains 4.73%. Whole-field SSD alone was inconclusive (the far field is not globally stationary). The added evidence-localized replay is decisive for the selected nuisance: same-cell SSD is 4.78% of ego SSD at alarm-evidence locations, 98.97% of selected mass prefers the same-cell match, and 91.07% of that mass is in rel_x≥7. Among near-(+1,0) alarms, the SSD ratio is 3.13% and 99.42% of selected mass prefers same-cell matching. Thus ego transport makes the selected cone-stationary structure appear to move at approximately +1 cell/step. This identifies a representation-level nuisance; it does not uniquely separate far-wall/floor image texture from learned positional features.
+
+**Mask changes the failure mode.** Only 808/15,226 (5.31%) nominal empty-room alarms retain selected evidence >1e-6, and only 9 are active locks. Its preregistered alarm failure therefore should not be read as 15,226 surviving detections. Near-only mask yields zero active locks in both empty and moving scenes. On K3D-v, subtraction has 18,161 full-support active locks, 35.29% near (+1,0); near-only lowers that fraction to 9.56%, while far-only retains 31.28%. Mask has only 1,358 full-support locks, 55.23% near zero; far-only has 2,888, 73.65% near zero. Removing the nuisance does not restore block-motion recall. No new acceptance criterion is introduced.
+
+Breakdown runtime: 1,178.31 s inside the module; evidence-localized attribution added 31.48 s because the whole-region SSD did not establish the mechanism. All 3,939 empty-room forward pairs were replayed; maximum velocity-component difference from cached measurements was 9.0e-6.
+
+
+<!-- followup:memory-lift-k3d_null_noblocks -->
+### 4. Memory-consistent imprint cache
+
+| source | split | clips | frames | seconds |
+| --- | --- | --- | --- | --- |
+| memory post-gate max-V tokens | k3d_null_noblocks | 50 | 7000 | 380.72081 |
+
+Released weights and original internal flow, ego transform, velocity mixing and gated write; all 140 frames are observed context. Imprint is the cone **after** `(1-g)*h_old + g*h_new`, max over all five velocity channels, before the decoder's shared positional encoding. No predicted frames or decoder calls. This uses model memory and is explicitly a diagnostic variant, not the design's observation-only lift. Cached fp16 under `.scratch/lifts_mem/`.
+
+
+<!-- followup:null-mem-k3d_null_noblocks-1 -->
+### 4. Mask null / contrast — memory post-gate max-V tokens
+
+| source | split | clips | sigma | steps | alarms | alarm_rate | evidence_weighted_speed | verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| memory post-gate max-V tokens | k3d_null_noblocks | 50 | 1.00000 | 6259 | 17886 | 0.16810 | 0.10501 | FAIL |
+
+Criterion: alarm ≤.02 and weighted speed ≤.05; K3D-int is a moving contrast, with no null criterion.
+
+
+<!-- followup:memory-lift-k3d_null_static -->
+### 4. Memory-consistent imprint cache
+
+| source | split | clips | frames | seconds |
+| --- | --- | --- | --- | --- |
+| memory post-gate max-V tokens | k3d_null_static | 50 | 7000 | 359.62145 |
+
+Released weights and original internal flow, ego transform, velocity mixing and gated write; all 140 frames are observed context. Imprint is the cone **after** `(1-g)*h_old + g*h_new`, max over all five velocity channels, before the decoder's shared positional encoding. No predicted frames or decoder calls. This uses model memory and is explicitly a diagnostic variant, not the design's observation-only lift. Cached fp16 under `.scratch/lifts_mem/`.
+
+
+<!-- followup:null-mem-k3d_null_static-1 -->
+### 4. Mask null / contrast — memory post-gate max-V tokens
+
+| source | split | clips | sigma | steps | alarms | alarm_rate | evidence_weighted_speed | verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| memory post-gate max-V tokens | k3d_null_static | 50 | 1.00000 | 6288 | 41258 | 0.38596 | 0.15025 | FAIL |
+
+Criterion: alarm ≤.02 and weighted speed ≤.05; K3D-int is a moving contrast, with no null criterion.
+
+
+<!-- followup:memory-lift-k3d_v_validation -->
+### 4. Memory-consistent imprint cache
+
+| source | split | clips | frames | seconds |
+| --- | --- | --- | --- | --- |
+| memory post-gate max-V tokens | k3d_v_validation | 100 | 14000 | 732.72441 |
+
+Released weights and original internal flow, ego transform, velocity mixing and gated write; all 140 frames are observed context. Imprint is the cone **after** `(1-g)*h_old + g*h_new`, max over all five velocity channels, before the decoder's shared positional encoding. No predicted frames or decoder calls. This uses model memory and is explicitly a diagnostic variant, not the design's observation-only lift. Cached fp16 under `.scratch/lifts_mem/`.
+
+
+<!-- followup:gate-mem-1 -->
+### 4. Mask estimator gate — memory post-gate max-V tokens, σ=1
+
+| source | truth_mode | speed_bin | truths | assigned | median | p90 | miss_rate | false_alarm_rate | verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| memory post-gate max-V tokens | intrinsic_incoming | all | 22412 | 3168 | 0.36410 | 0.71904 | 0.90104 | 0.32227 | FAIL |
+| memory post-gate max-V tokens | intrinsic_incoming | 0.25-1 | 22412 | 3168 | 0.36410 | 0.71904 | 0.90104 | 0.32227 | FAIL |
+| memory post-gate max-V tokens | intrinsic_incoming | 0.25-0.5 | 7105 | 1356 | 0.28888 | 0.55201 | 0.83420 | 0.31888 | FAIL |
+| memory post-gate max-V tokens | intrinsic_incoming | 0.5-0.75 | 7449 | 1067 | 0.40232 | 0.70356 | 0.90777 | 0.23464 | FAIL |
+| memory post-gate max-V tokens | intrinsic_incoming | 0.75-1 | 7858 | 745 | 0.52156 | 0.89417 | 0.95508 | 0.42188 | FAIL |
+| memory post-gate max-V tokens | literal | all | 22412 | 3168 | 0.49448 | 1.23383 | 0.92848 | 0.50619 | FAIL |
+| memory post-gate max-V tokens | literal | 0.25-1 | 14952 | 2525 | 0.41361 | 0.89354 | 0.89734 | 0.50619 | FAIL |
+| memory post-gate max-V tokens | literal | 0.25-0.5 | 4348 | 1016 | 0.29367 | 0.59138 | 0.80313 | 0.50119 | FAIL |
+| memory post-gate max-V tokens | literal | 0.5-0.75 | 5205 | 891 | 0.48361 | 0.82539 | 0.90913 | 0.49534 | FAIL |
+| memory post-gate max-V tokens | literal | 0.75-1 | 5399 | 618 | 0.65486 | 1.06483 | 0.96184 | 0.58333 | FAIL |
+
+Criterion applies to intrinsic_incoming, speed .25–1: median ≤.1 and miss ≤.30. Other rows are diagnostics.
+
+All-node selectivity on nonturn steps with jointly visible blocks. `any_nearest_top` is the fraction of steps where at least one truth's nearest node has positive maximum evidence; `all_nearest_top` requires all truths' nearest nodes to tie that maximum. `object_nearest_top` counts object-step pairs. Nearest nodes use the fixed lattice or pre-update adaptive velocities as labelled. Wrong nodes lie >.5 from **every** visible truth; ratio is their largest evidence divided by the largest nearest-true-node evidence. Zero denominator with positive wrong mass is infinity; 0/0 is undefined and excluded. Both counts are explicit.
+
+| source | truth_mode | node_basis | field | steps | any_nearest_top | all_nearest_top | object_nearest_top | mean_best_wrong_ratio | finite_mean_ratio | infinite_ratios | undefined_0_0 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| memory post-gate max-V tokens | intrinsic_incoming | lattice | evidence | 7984 | 0.19088 | 0.01678 | 0.07844 | inf | 1.64978 | 551 | 2818 |
+| memory post-gate max-V tokens | intrinsic_incoming | lattice | evidence_before_modes | 7984 | 0.16771 | 0.01503 | 0.06778 | inf | 1.85968 | 536 | 2699 |
+| memory post-gate max-V tokens | intrinsic_incoming | prior_adaptive | evidence | 7984 | 0.17786 | 0.02117 | 0.07398 | inf | 1.33330 | 603 | 2935 |
+| memory post-gate max-V tokens | intrinsic_incoming | prior_adaptive | evidence_before_modes | 7984 | 0.20679 | 0.02355 | 0.08736 | inf | 1.33582 | 430 | 2738 |
+| memory post-gate max-V tokens | literal | lattice | evidence | 7984 | 0.14905 | 0.01453 | 0.06555 | inf | 2.48788 | 1157 | 2770 |
+| memory post-gate max-V tokens | literal | lattice | evidence_before_modes | 7984 | 0.14466 | 0.01315 | 0.06358 | inf | 2.66714 | 824 | 2661 |
+| memory post-gate max-V tokens | literal | prior_adaptive | evidence | 7984 | 0.12926 | 0.02142 | 0.05912 | inf | 2.46487 | 1328 | 2830 |
+| memory post-gate max-V tokens | literal | prior_adaptive | evidence_before_modes | 7984 | 0.15857 | 0.02342 | 0.07438 | inf | 2.43972 | 888 | 2691 |
+
+Mean evidence and lock fraction on **all** nonturn node-steps (no truth selection):
+
+| source | node | vx | vy | evidence | evidence_before_modes | locked |
+| --- | --- | --- | --- | --- | --- | --- |
+| memory post-gate max-V tokens | 0 | 0.00000 | 0.00000 | 0.00000 | 0.00000 | 0.00000 |
+| memory post-gate max-V tokens | 1 | 0.25000 | 0.25000 | 2.64302 | 4.39732 | 0.03458 |
+| memory post-gate max-V tokens | 2 | -0.25000 | 0.25000 | 2.65228 | 4.45824 | 0.03650 |
+| memory post-gate max-V tokens | 3 | -0.25000 | -0.25000 | 2.58562 | 4.32746 | 0.03403 |
+| memory post-gate max-V tokens | 4 | 0.25000 | -0.25000 | 2.60706 | 4.35145 | 0.03618 |
+| memory post-gate max-V tokens | 5 | 0.75000 | 0.75000 | 0.84227 | 2.65130 | 0.01179 |
+| memory post-gate max-V tokens | 6 | -0.75000 | 0.75000 | 0.93773 | 3.00593 | 0.01028 |
+| memory post-gate max-V tokens | 7 | -0.75000 | -0.75000 | 0.91770 | 2.94791 | 0.01132 |
+| memory post-gate max-V tokens | 8 | 0.75000 | -0.75000 | 0.83214 | 2.63559 | 0.01211 |
+| memory post-gate max-V tokens | 9 | 0.25000 | 0.75000 | 1.48187 | 3.39491 | 0.01793 |
+| memory post-gate max-V tokens | 10 | -0.75000 | 0.25000 | 1.65192 | 3.67701 | 0.02112 |
+| memory post-gate max-V tokens | 11 | -0.25000 | -0.75000 | 1.56196 | 3.50040 | 0.02096 |
+| memory post-gate max-V tokens | 12 | 0.75000 | -0.25000 | 1.52761 | 3.39986 | 0.02064 |
+| memory post-gate max-V tokens | 13 | 0.75000 | 0.25000 | 1.52519 | 3.42137 | 0.01920 |
+| memory post-gate max-V tokens | 14 | -0.25000 | 0.75000 | 1.50346 | 3.47095 | 0.01729 |
+| memory post-gate max-V tokens | 15 | -0.75000 | -0.25000 | 1.60971 | 3.57872 | 0.01785 |
+| memory post-gate max-V tokens | 16 | 0.25000 | -0.75000 | 1.47557 | 3.37312 | 0.01920 |
+
+Per-step evidence comparisons: `results/followup_gate_mem_s1_evidence_steps.csv`. All 17-node arrays and estimates at every step are retained in the versioned trajectory tensors.
+
+
+<!-- followup:dependency-audit -->
+### Dependency update audit
+
+The external KWM checkout changed from `2e73903` to `c7067d3` during execution. `lock_nodes.py` was updated at 18:43:18 EST (commit 18:44:03), after the mask, tests and breakdown processes had imported the original code, and before patch/attribution/memory processes started. The sole diff adds optional `support_mask_key=None` forwarding; this campaign never supplies that argument. No KWM source was edited by this work. Both revisions were loaded from git into local scratch snapshots and compared on 18 real observation/memory pairs, including adaptive priors, all three support masks, both residual modes and both sigma values. All three outputs and every diagnostic tensor were bitwise identical in all 216 pair/configuration cases. This establishes parity for the used path, not for the new optional feature.
+
+| source | mode | region | sigma | pairs | bitwise_equal | max_difference |
+| --- | --- | --- | --- | --- | --- | --- |
+| observation-only + memory post-gate max-V tokens | subtract | all | 0.50000 | 18 | True | 0.00000 |
+| observation-only + memory post-gate max-V tokens | subtract | all | 1.00000 | 18 | True | 0.00000 |
+| observation-only + memory post-gate max-V tokens | subtract | near | 0.50000 | 18 | True | 0.00000 |
+| observation-only + memory post-gate max-V tokens | subtract | near | 1.00000 | 18 | True | 0.00000 |
+| observation-only + memory post-gate max-V tokens | subtract | far | 0.50000 | 18 | True | 0.00000 |
+| observation-only + memory post-gate max-V tokens | subtract | far | 1.00000 | 18 | True | 0.00000 |
+| observation-only + memory post-gate max-V tokens | mask | all | 0.50000 | 18 | True | 0.00000 |
+| observation-only + memory post-gate max-V tokens | mask | all | 1.00000 | 18 | True | 0.00000 |
+| observation-only + memory post-gate max-V tokens | mask | near | 0.50000 | 18 | True | 0.00000 |
+| observation-only + memory post-gate max-V tokens | mask | near | 1.00000 | 18 | True | 0.00000 |
+| observation-only + memory post-gate max-V tokens | mask | far | 0.50000 | 18 | True | 0.00000 |
+| observation-only + memory post-gate max-V tokens | mask | far | 1.00000 | 18 | True | 0.00000 |
+
+Audit runtime: 4.83 s. Source hashes and stage mapping are in `followup_kwm_revisions.csv`; initial provenance remains intact.
+
+
+<!-- followup:memory-verdict -->
+### 4. Verdict — memory post-gate max-V tokens
+
+**FAIL** for both null splits and the 100-clip estimator gate. Empty/static alarm rates are 16.81%/38.60%, and evidence-weighted speeds are .10501/.15025, exceeding both limits (≤2%, ≤.05). Primary intrinsic gate median is .36410, p90 .71904, miss 90.10%, false-alarm rate 32.23%; required median ≤.1 and miss ≤30%. Literal secondary median is .41361, p90 .89354, miss 89.73%. The nearest true lattice node leads selected evidence on 19.09% of eligible steps; mean best-wrong ratio is infinite (551 positive-wrong/zero-true cases; 2,818 undefined 0/0 cases).
+
+Using the released model's own memory does not rescue these null and motion-estimation criteria. This is a diagnostic memory source, not the design's observation-only lift. The gate uses 100 clips versus 200 in item 1; the null cohorts are exactly matched at 50 clips each. Memory stage runtime was 1,794.40 s including caching and scoring, excluding the separately reported attribution check and imports.
+
+
+<!-- followup:tests-final -->
+### 5. Fast tests and artifact validation
+
+**PASS: 11 tests in 26.76 s** (29.37 s including process/import overhead), against the final external KWM revision. The first run passed in 19.81 s. Tests cover synthetic fractional patch motion with and without ego translation, exact integer Fourier samples, unusable support, alarm/action/histogram bookkeeping inputs, multiple-truth evidence ratios, and exact cached-precision parity of the memory adapter with released forward context writes, as well as the original seven checks. The two warnings are existing dependency deprecations. Logs: `.scratch/followup_tests.log` and `.scratch/followup_tests_final.log`.
+
+Artifact checks passed: all 1,840 follow-up trajectories, 200 memory clips and 1,000 patch variant/clip caches exist; all five patch runs use the identical 44,990 unique pairs; all 12 breakdowns have correct action partitions and histogram totals; all node tables include 17 nodes with zero pinned static metadata. The original report is an unchanged byte-for-byte prefix (SHA-256 recorded in provenance). No original result CSV was overwritten. `followup_validation.csv` records these checks; final hashes are in `followup_provenance_final.csv`.
+
+
+<!-- followup:execution-final -->
+### Commands and runtime
+
+All Python commands below run in the CPU-only, eight-thread environment configured by `run_cpu.sh`; W&B is offline, bytecode is disabled, and cache/temp directories are under `.scratch/`. The pipeline command was `bash experiments/flowm_bench/k3d/run_cpu.sh run_followup --after-mask`. Every completed stage returned zero.
+
+| source | stage | command | seconds | basis | status |
+| --- | --- | --- | --- | --- | --- |
+| observation-only tokens | mask rerun | bash experiments/flowm_bench/k3d/run_cpu.sh followup mask | 956.223 | log creation to completed timestamp (approximate wall) | 0 |
+| synthetic + observation/released context | tests | /home/yixunhu/miniconda3/envs/flowm/bin/python -m pytest tests/k3d/test_stage1.py -q -o cache_dir=experiments/flowm_bench/k3d/.scratch/pytest_cache | 22.256 | subprocess wall; includes imports | 0 |
+| observation-only tokens | breakdown | /home/yixunhu/miniconda3/envs/flowm/bin/python -m k3d.alarm_breakdown | 1189.580 | subprocess wall; includes imports | 0 |
+| observation-only tokens/h_new | patch | /home/yixunhu/miniconda3/envs/flowm/bin/python -m k3d.patch_motion | 267.988 | subprocess wall; includes imports | 0 |
+| memory tokens + observation attribution | memory | /home/yixunhu/miniconda3/envs/flowm/bin/python -m k3d.memory_lift | 1836.935 | subprocess wall; includes imports | 0 |
+| observation + memory tokens | dependency audit | bash experiments/flowm_bench/k3d/run_cpu.sh followup_dependency_audit | 16.290 | process wall; includes imports | 0 |
+| synthetic + observation/released context | final tests | /home/yixunhu/miniconda3/envs/flowm/bin/python -m pytest tests/k3d/test_stage1.py -q -o cache_dir=experiments/flowm_bench/k3d/.scratch/pytest_cache | 29.370 | process wall; includes imports | 0 |
+
+Measured command wall times total **71.98 minutes**. The memory command includes the extra 31.48 s attribution check; do not add it again. From the first measurement command (2026-11-04 18:25:58 EST) through this finalization (2026-11-04T19:41:37-05:00) is **75.65 minutes**, plus initial reading/implementation before the first command. The full task stayed well within the approximate three-hour budget. Model inference and measurement jobs ran sequentially at eight threads, with no GPU execution.
+
+
+<!-- followup:summary-final -->
+### Follow-up summary and deviations
+
+1. **Mask rerun: FAIL.** Both widths fail both nulls and the primary gate. Best-width selection by the original ordering gives σ=1, median .40741 and misses 99.05%. The failure survives the corrected intrinsic-incoming target.
+2. **Null diagnosis: cone-stationary nuisance supported.** Subtraction alarm evidence overwhelmingly selects same-cell content (98.97% of mass), mostly in the far field (91.07%). Forward transport turns this into approximately (+1,0) intrinsic motion. Mask rejects most such nominal alarms but leaves very poor true-motion recall.
+3. **Direct visibility: weak for this oracle-location patch test.** Across tokens/h_new and K=8/32/raw-256, medians are .61373–.64170 and within-.25 fractions are only 12.06–13.73%. Removing projection does not solve the patch-motion mismatch. There is no preregistered pass threshold for this diagnostic.
+4. **Memory diagnostic: FAIL.** Empty/static weighted speeds .10501/.15025 and alarm rates 16.81%/38.60%; 100-clip intrinsic gate median .36410, misses 90.10%. The model's own map does not rescue the requested criteria.
+5. **Tests: PASS**, all 11 in under one minute. No sample or frame reductions, threshold changes, training, GPU computation, data writes, or KWM file edits were made by this work.
+
+Deviations, implementation choices and reasons:
+
+- The external KWM checkout changed to `c7067d3` while the campaign was running. The original mask/tests/breakdown processes retained `2e73903`; later imports used the new optional mask-key API. The campaign leaves that argument unset. All outputs and diagnostics were bitwise equal in a 216-case real-pair audit. Initial and final hashes, revision-stage mapping, and scratch source snapshots are retained. No dependency edit or commit was performed here.
+- Added an evidence-localized attribution replay after whole-region SSD did **not** establish global far-field stationarity. This was necessary to distinguish the cells selected by alarms from the rest of the scene. It ran sequentially after the patch stage, which is why its additional item-2 tables appear after item 3. The result supports cone-stationary **imprint** content; it cannot semantically isolate far walls, floor texture, or positional features.
+- The public released forward cannot return a zero-length prediction sequence. A local context-only adapter reproduces its original shift/roll/mix/write loop, avoiding prediction and decoder calls. Exact fp16 write parity was tested against hooks on the released forward; no model code or weights were changed.
+- Direct search uses the permitted 3×3 SSD/parabolic approach with a uniform patch and exact half-cell Fourier interpolation. It searches intrinsic ±1.5 around the ego-transported previous centre, normalizes shared support, requires half the patch's valid mass, and retains and reports boundary minima. All 44,990 pairs were usable. These choices are documented rather than represented as the full production LocalSearch pooling/rejection policy. The test is an oracle-location diagnostic, not a proof of an information-theoretic ceiling for arbitrary learned estimators.
+- Multiple visible blocks make a single nearest-true-node score ambiguous. Both fixed-lattice and adaptive-prior definitions, object/any/all-step success, and evidence before/after selection are reported. A wrong node must be farther than .5 from every visible true velocity. Positive-wrong/zero-true ratios are infinite; 0/0 is undefined, with counts and finite-only means reported separately. No epsilon was added to conceal nonselectivity.
+- Action groups are disjoint: neighboring-turn pairs are turn-adjacent even if their current action is forward/no-op. Actual turns carry state but are excluded from fresh detection denominators. Restricted-support runs reset and evolve independently, so near/far alarm totals are not additive. All clips retain 140 frames and therefore 139 incoming pairs before turn exclusion. Visibility retains the original rounded-cone/no-occlusion-filter convention.
+- The original normalized-agreement alarm criterion is retained even when mask mode's later search confirmation or mode selection removes evidence. Survivor fractions are shown explicitly so nominal alarms are not confused with final detections. The new memory gate uses the requested 100 clips; no claim of a matched-cohort gate improvement over the 200-clip observation run is made.
+
+Code, CSVs and all scratch artifacts remain in the allowed experiment/test paths. Unrelated concurrent backbone/dataset/script edits were left alone. The original report sections are unchanged. Proposed commit message: `experiments/flowm_bench/k3d/.scratch/COMMIT_MSG2.txt`; no commit was attempted.

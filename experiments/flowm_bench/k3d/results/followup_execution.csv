@@ -1,0 +1,8 @@
+stage,source,command,seconds,basis,status
+mask rerun,observation-only tokens,bash experiments/flowm_bench/k3d/run_cpu.sh followup mask,956.2231929302216,log creation to completed timestamp (approximate wall),0
+tests,synthetic + observation/released context,/home/yixunhu/miniconda3/envs/flowm/bin/python -m pytest tests/k3d/test_stage1.py -q -o cache_dir=experiments/flowm_bench/k3d/.scratch/pytest_cache,22.2556809252128,subprocess wall; includes imports,0
+breakdown,observation-only tokens,/home/yixunhu/miniconda3/envs/flowm/bin/python -m k3d.alarm_breakdown,1189.5803060811013,subprocess wall; includes imports,0
+patch,observation-only tokens/h_new,/home/yixunhu/miniconda3/envs/flowm/bin/python -m k3d.patch_motion,267.9883568305522,subprocess wall; includes imports,0
+memory,memory tokens + observation attribution,/home/yixunhu/miniconda3/envs/flowm/bin/python -m k3d.memory_lift,1836.9353391481563,subprocess wall; includes imports,0
+dependency audit,observation + memory tokens,bash experiments/flowm_bench/k3d/run_cpu.sh followup_dependency_audit,16.29,process wall; includes imports,0
+final tests,synthetic + observation/released context,/home/yixunhu/miniconda3/envs/flowm/bin/python -m pytest tests/k3d/test_stage1.py -q -o cache_dir=experiments/flowm_bench/k3d/.scratch/pytest_cache,29.37,process wall; includes imports,0

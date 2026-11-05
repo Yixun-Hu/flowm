@@ -1,0 +1,6 @@
+source,split,kind,mode,region,action,steps,measured_steps,node_steps,detections,steps_with_detection,evidenced_detections,locked_detections,near_forward,near_zero,vx_sum,vy_sum,node_rate,step_rate,evidenced_fraction,locked_fraction,near_forward_fraction,near_zero_fraction,mean_vx,mean_vy
+observation-only tokens,k3d_v_validation,locked,mask,near,all,25108,25108,426836,0,0,0,0,0,0,0.0,0.0,0.0,0.0,nan,nan,nan,nan,nan,nan
+observation-only tokens,k3d_v_validation,locked,mask,near,forward,15554,15554,264418,0,0,0,0,0,0,0.0,0.0,0.0,0.0,nan,nan,nan,nan,nan,nan
+observation-only tokens,k3d_v_validation,locked,mask,near,no-op,5655,5655,96135,0,0,0,0,0,0,0.0,0.0,0.0,0.0,nan,nan,nan,nan,nan,nan
+observation-only tokens,k3d_v_validation,locked,mask,near,turn-adjacent,3899,3899,66283,0,0,0,0,0,0,0.0,0.0,0.0,0.0,nan,nan,nan,nan,nan,nan
+observation-only tokens,k3d_v_validation,locked,mask,near,turn,2692,0,0,0,0,0,0,0,0,0.0,0.0,nan,nan,nan,nan,nan,nan,nan,nan

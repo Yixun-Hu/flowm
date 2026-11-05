@@ -1,0 +1,9 @@
+source,sigma,truth_mode,node_basis,field,steps,any_nearest_top,all_nearest_top,object_nearest_top,mean_best_wrong_ratio,finite_mean_ratio,infinite_ratios,undefined_0_0
+memory post-gate max-V tokens,1.0,intrinsic_incoming,lattice,evidence,7984,0.1908817635270541,0.016783567134268536,0.07844012136355524,inf,1.6497774060642527,551,2818
+memory post-gate max-V tokens,1.0,intrinsic_incoming,lattice,evidence_before_modes,7984,0.16771042084168336,0.01503006012024048,0.06777619132607532,inf,1.8596765511275235,536,2699
+memory post-gate max-V tokens,1.0,intrinsic_incoming,prior_adaptive,evidence,7984,0.1778557114228457,0.021167334669338678,0.07397822595038372,inf,1.3333039024860058,603,2935
+memory post-gate max-V tokens,1.0,intrinsic_incoming,prior_adaptive,evidence_before_modes,7984,0.20678857715430862,0.023547094188376753,0.08736391218989827,inf,1.3358204734126458,430,2738
+memory post-gate max-V tokens,1.0,literal,lattice,evidence,7984,0.14904809619238477,0.014529058116232466,0.06554524361948956,inf,2.4878775609217794,1157,2770
+memory post-gate max-V tokens,1.0,literal,lattice,evidence_before_modes,7984,0.14466432865731463,0.01315130260521042,0.06358200963769409,inf,2.667136259322353,824,2661
+memory post-gate max-V tokens,1.0,literal,prior_adaptive,evidence,7984,0.12925851703406813,0.021417835671342686,0.059120114224522576,inf,2.4648680247943817,1328,2830
+memory post-gate max-V tokens,1.0,literal,prior_adaptive,evidence_before_modes,7984,0.15856713426853708,0.02342184368737475,0.07437979653756915,inf,2.439715617670171,888,2691

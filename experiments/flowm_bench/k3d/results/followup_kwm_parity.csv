@@ -1,0 +1,13 @@
+source,mode,region,sigma,pairs,bitwise_equal,max_difference
+observation-only + memory post-gate max-V tokens,subtract,all,0.5,18,True,0.0
+observation-only + memory post-gate max-V tokens,subtract,all,1.0,18,True,0.0
+observation-only + memory post-gate max-V tokens,subtract,near,0.5,18,True,0.0
+observation-only + memory post-gate max-V tokens,subtract,near,1.0,18,True,0.0
+observation-only + memory post-gate max-V tokens,subtract,far,0.5,18,True,0.0
+observation-only + memory post-gate max-V tokens,subtract,far,1.0,18,True,0.0
+observation-only + memory post-gate max-V tokens,mask,all,0.5,18,True,0.0
+observation-only + memory post-gate max-V tokens,mask,all,1.0,18,True,0.0
+observation-only + memory post-gate max-V tokens,mask,near,0.5,18,True,0.0
+observation-only + memory post-gate max-V tokens,mask,near,1.0,18,True,0.0
+observation-only + memory post-gate max-V tokens,mask,far,0.5,18,True,0.0
+observation-only + memory post-gate max-V tokens,mask,far,1.0,18,True,0.0

@@ -1,0 +1,5 @@
+stage,command,seconds,status
+tests,/home/yixunhu/miniconda3/envs/flowm/bin/python -m pytest tests/k3d/test_stage1.py -q -o cache_dir=experiments/flowm_bench/k3d/.scratch/pytest_cache,22.2556809252128,0
+breakdown,/home/yixunhu/miniconda3/envs/flowm/bin/python -m k3d.alarm_breakdown,1189.5803060811013,0
+patch,/home/yixunhu/miniconda3/envs/flowm/bin/python -m k3d.patch_motion,267.9883568305522,0
+memory,/home/yixunhu/miniconda3/envs/flowm/bin/python -m k3d.memory_lift,1836.9353391481563,0

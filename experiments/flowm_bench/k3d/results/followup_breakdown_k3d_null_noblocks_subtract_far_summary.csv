@@ -1,0 +1,6 @@
+source,split,kind,mode,region,action,steps,measured_steps,node_steps,detections,steps_with_detection,evidenced_detections,locked_detections,near_forward,near_zero,vx_sum,vy_sum,node_rate,step_rate,evidenced_fraction,locked_fraction,near_forward_fraction,near_zero_fraction,mean_vx,mean_vy
+observation-only tokens,k3d_null_noblocks,alarm,subtract,far,all,6259,6259,106403,5034,1706,5034,4650,2028,0,4969.641788482666,65.61838150024414,0.0473106961269889,0.2725675027959738,1.0,0.9237187127532777,0.4028605482717521,0.0,0.9872152936993774,0.01303503804136753
+observation-only tokens,k3d_null_noblocks,alarm,subtract,far,forward,3828,3828,65076,4664,1609,4664,4292,1860,0,4620.603710174561,62.366018891334534,0.07167004732927654,0.4203239289446186,1.0,0.9202401372212693,0.39879931389365353,0.0,0.9906954781677875,0.01337178792695852
+observation-only tokens,k3d_null_noblocks,alarm,subtract,far,no-op,1460,1460,24820,0,0,0,0,0,0,0.0,0.0,0.0,0.0,nan,nan,nan,nan,nan,nan
+observation-only tokens,k3d_null_noblocks,alarm,subtract,far,turn-adjacent,971,971,16507,370,97,370,358,168,0,349.0380625128746,3.2523618638515472,0.022414733143514873,0.09989701338825953,1.0,0.9675675675675676,0.4540540540540541,0.0,0.9433461148996611,0.008790167199598777
+observation-only tokens,k3d_null_noblocks,alarm,subtract,far,turn,691,0,0,0,0,0,0,0,0,0.0,0.0,nan,nan,nan,nan,nan,nan,nan,nan

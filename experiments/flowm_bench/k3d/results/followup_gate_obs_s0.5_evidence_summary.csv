@@ -1,0 +1,9 @@
+source,sigma,truth_mode,node_basis,field,steps,any_nearest_top,all_nearest_top,object_nearest_top,mean_best_wrong_ratio,finite_mean_ratio,infinite_ratios,undefined_0_0
+observation-only tokens,0.5,intrinsic_incoming,lattice,evidence,15876,0.1939405391786344,0.026958931720836483,0.07599466548121805,inf,3504078.804915998,2966,1571
+observation-only tokens,0.5,intrinsic_incoming,lattice,evidence_before_modes,15876,0.18871252204585537,0.02708490803728899,0.07397199377639475,inf,573427.5317026273,2797,1326
+observation-only tokens,0.5,intrinsic_incoming,prior_adaptive,evidence,15876,0.2244268077601411,0.031872008062484254,0.08884196488108469,inf,4130.025637604945,2744,1718
+observation-only tokens,0.5,intrinsic_incoming,prior_adaptive,evidence_before_modes,15876,0.23803224993701183,0.0354623330813807,0.09446543676372528,inf,334.58790164117823,2354,1430
+observation-only tokens,0.5,literal,lattice,evidence,15876,0.15513983371126228,0.021541950113378686,0.06583685263391865,inf,3155676.4187312587,4423,1458
+observation-only tokens,0.5,literal,lattice,evidence_before_modes,15876,0.15249433106575963,0.021919879062736205,0.06574794398755279,inf,693197.720294722,3818,1252
+observation-only tokens,0.5,literal,prior_adaptive,evidence,15876,0.17019400352733685,0.02947845804988662,0.07795065570126695,inf,77316.28070315183,4473,1508
+observation-only tokens,0.5,literal,prior_adaptive,evidence_before_modes,15876,0.1835474930713026,0.031746031746031744,0.0843520782396088,inf,72309.77664320923,3838,1279

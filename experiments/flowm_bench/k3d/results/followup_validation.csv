@@ -1,0 +1,8 @@
+check,result,count
+Original report prefix unchanged,PASS,80552
+Follow-up per-clip trajectories,PASS,1840
+Memory lift clips,PASS,200
+Patch variant/clip caches,PASS,1000
+Identical usable patch pairs across all five variants,PASS,44990
+All action partitions and 2D histogram totals,PASS,12
+All-node tables and pinned static metadata,PASS,3
