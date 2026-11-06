@@ -1,5 +1,6 @@
 from typing import Optional, Dict, Tuple
 import inspect
+from pathlib import Path
 from omegaconf import DictConfig
 import torch
 from torch import Tensor
@@ -119,6 +120,15 @@ class FloWMVideo(BaseWMMixin, BasePytorchAlgo):
     def _metadata_kwargs(self, metadata):
         return {"metadata": metadata} if self._backbone_accepts_metadata else {}
 
+    def on_load_checkpoint(self, checkpoint):
+        if self.backbone_cfg.model_type == "kwm3d":
+            prefix = self.main_model_prefix + "."
+            state = {k[len(prefix):]: v for k, v in checkpoint["state_dict"].items() if k.startswith(prefix)}
+            # CheckpointMixin fills omitted keys and discards unexpected keys.
+            # A kinetic checkpoint must instead match the selected arm exactly.
+            self.main_model.load_state_dict(state, strict=True)
+        super().on_load_checkpoint(checkpoint)
+
     def training_step(self, batch, batch_idx, dataloader_idx = 0, namespace="training") -> STEP_OUTPUT:
         """
         Training step
@@ -214,6 +224,16 @@ class FloWMVideo(BaseWMMixin, BasePytorchAlgo):
     # ---------------------------------------------------------------------
 
     def on_validation_epoch_start(self) -> None:
+        self._clip_dump = None
+        if self.logging_cfg.get("per_clip_dump") and not self.trainer.sanity_checking:
+            if self.trainer.world_size != 1 or len(self.trainer.val_dataloaders) != 1:
+                raise ValueError("per_clip_dump requires one device and one validation split")
+            from algorithms.mem_wm.backbones.kwm3d.per_clip import PerClipDump
+            self._clip_dump = PerClipDump(self.n_context_frames,
+                self.logging_cfg.n_metrics_frames or self.cfg.n_frames)
+            # Float64 accumulators avoid drift across 1,000 clip updates.
+            for metric in self._metrics("prediction").values():
+                metric.set_dtype(torch.float64)
         # If using preprocessed latents, we don't keep the vae in memory during training. need 
         # to reload it during validation. 
         if self.is_latent_diffusion and self.use_preprocessed_latents:
@@ -246,23 +266,58 @@ class FloWMVideo(BaseWMMixin, BasePytorchAlgo):
                 if v.shape[2] != 3:
                     all_videos[k] = v.repeat(1, 1, 3, 1, 1)
             self._update_metrics(all_videos, dataloader_idx=dataloader_idx)
-            if hasattr(self, "block_region_metric"):
+            if hasattr(self, "block_region_metric") or getattr(self, "_clip_dump", None) is not None:
                 start = self.n_context_frames
                 end = self.logging_cfg.n_metrics_frames or all_videos["prediction"].shape[1]
                 meta = {k: v[:, start:end] for k, v in video_metadata.items() if k.startswith("block_")}
                 # Match VideoMetric's [0,1] convention without changing its inputs.
                 pred = torch.nan_to_num(all_videos["prediction"][:, start:end]).clamp(0, 1)
                 target = torch.nan_to_num(all_videos["gt"][:, start:end]).clamp(0, 1)
-                self.block_region_metric.update(pred, target, meta, batch[2][:, :pred.shape[1]])
+                actions = batch[2][:, :pred.shape[1]]
+                if getattr(self, "_clip_dump", None) is not None:
+                    from algorithms.mem_wm.backbones.kwm3d.per_clip import clip_stats
+                    stats = clip_stats(pred, target, meta, actions)
+                    self._clip_dump.append(stats, video_metadata)
+                    if hasattr(self, "block_region_metric"):
+                        self.block_region_metric.update(stats=stats)
+                else:
+                    self.block_region_metric.update(pred, target, meta, actions)
             self._log_videos(all_videos, namespace, dataloader_idx=dataloader_idx, video_metadata=video_metadata)
 
         return
 
     def on_validation_epoch_end(self, namespace="validation"):
+        pooled_values = None
+        if getattr(self, "_clip_dump", None) is not None and self._clip_dump.paths:
+            dest = Path(self.logging_cfg.per_clip_dump)
+            if self.trainer.state.fn == "FIT":
+                dest = dest / f"step-{self.global_step:06d}"
+            data = self._clip_dump.write(dest)
+            pooled_values = dict(zip(data["metric_names"], data["pooled"]))
+            if "mse" in self._metrics("prediction").metrics:
+                torch.testing.assert_close(pooled_values["mse"],
+                    self._metrics("prediction").metrics["mse"].compute().cpu().double(), rtol=1e-6, atol=0)
         if hasattr(self, "block_region_metric") and self.block_region_metric._update_called:
             values = self.block_region_metric.compute()
+            if pooled_values is not None:
+                for name, value in values.items():
+                    torch.testing.assert_close(pooled_values[name], value.cpu(), rtol=1e-6, atol=0, equal_nan=True)
             self.log_dict({f"{namespace}/prediction/{k}": v for k, v in values.items()}, sync_dist=True)
             self.block_region_metric.reset()
+        if self.backbone_cfg.model_type == "kwm3d":
+            # The common hook omits FIT metrics and accumulates them across
+            # validation epochs. Pilot curves need a fresh value each time.
+            for task in self.tasks:
+                metric = self._metrics(task)
+                if metric is None:
+                    continue
+                values = {f"{task}/{k.value}": v.compute() for k, v in metric.items() if v._update_called}
+                if values:
+                    self.log_dict(values, on_step=False, on_epoch=True, sync_dist=True)
+                metric.reset()
+            self.generator = None
+            self._clip_dump = None
+            return
         super().on_validation_epoch_end(namespace=namespace)
 
     # ---------------------------------------------------------------------

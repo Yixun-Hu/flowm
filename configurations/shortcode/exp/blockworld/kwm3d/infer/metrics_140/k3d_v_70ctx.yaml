@@ -11,14 +11,22 @@ algorithm:
       enabled: false
   logging:
     max_num_videos: 8
-    metrics: [fvd, lpips, mse, psnr, ssim, block_mse]
+    metrics: [mse, psnr, ssim, block_mse]
 dataset:
   max_frames: 140
   n_frames: 140
   num_default_clips: 1000
+  metadata_read_only: true
+  validation_first_clips: true
 experiment:
   tasks: [validation]
+  devices: 1
   validation:
+    strategy: auto
     batch_size: 8
     splits_included: [k3d_v_validation]
     sample_during_training: true
+
+seed: 0
+wandb:
+  mode: offline

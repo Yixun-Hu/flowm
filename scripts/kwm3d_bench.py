@@ -1,78 +1,89 @@
 #!/usr/bin/env python3
-"""CPU-only forward/backward timing; no optimizer, trainer, or GPU calls.
-
-Each checkpoint mode runs in a fresh child process so ru_maxrss is independent.
-One step means a complete 10-context + 5-prediction rollout and backward.
-Saved-input bytes are per recurrent frame-step; projections count 90/140 frames.
-"""
+"""Hydra-model rollout/backward/AdamW timing, in a fresh process per mode."""
 import argparse
 import json
-import os
-from pathlib import Path
 import subprocess
 import sys
-
-ROOT = Path(__file__).resolve().parents[1]
-SCRATCH = ROOT / "algorithms/mem_wm/backbones/kwm3d/.scratch"
-os.environ.update(CUDA_VISIBLE_DEVICES="", OMP_NUM_THREADS="8", MKL_NUM_THREADS="8", WANDB_MODE="offline",
-                  PYTHONDONTWRITEBYTECODE="1", MPLCONFIGDIR=str(SCRATCH / "matplotlib"),
-                  XDG_CACHE_HOME=str(SCRATCH / "cache"), TMPDIR=str(SCRATCH / "tmp"))
-sys.path.insert(0, str(ROOT))
+from kwm3d_runtime import setup, compose_pilot
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--device", choices=["cpu"], default="cpu")
-    parser.add_argument("--arm", choices=["c", "c_pw", "a_oracle", "a", "b"], required=True)
-    parser.add_argument("--steps", type=int, default=3)
-    parser.add_argument("--batch", type=int, default=1)
-    parser.add_argument("--checkpoint", choices=["both", "on", "off"], default="both")
-    parser.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
-    args = parser.parse_args()
-    if args.steps < 1 or args.batch < 1:
-        parser.error("steps and batch must be positive")
-    for name in ("matplotlib", "cache", "tmp"):
-        (SCRATCH / name).mkdir(parents=True, exist_ok=True)
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument('--device', choices=['cpu', 'cuda'], default='cpu')
+    p.add_argument('--arm', choices=['c', 'c_pw', 'a_oracle', 'a', 'b'], required=True)
+    p.add_argument('--steps', type=int, default=3, help='timed optimizer steps after warmup')
+    p.add_argument('--batch', type=int, default=1)
+    p.add_argument('--context', type=int, default=10)
+    p.add_argument('--prediction', type=int, default=5)
+    p.add_argument('--warmup', type=int, default=2)
+    p.add_argument('--accumulate', type=int, default=1)
+    p.add_argument('--checkpoint', choices=['both', 'on', 'off'], default='both')
+    p.add_argument('--worker', action='store_true', help=argparse.SUPPRESS)
+    args = p.parse_args()
+    if min(args.steps, args.batch, args.context, args.prediction, args.accumulate) < 1 or args.warmup < 0:
+        p.error('steps, batch, context, prediction, accumulate must be positive; warmup nonnegative')
+    setup(args.device)
     if not args.worker:
-        modes = ("off", "on") if args.checkpoint == "both" else (args.checkpoint,)
-        for mode in modes:
-            subprocess.run([sys.executable, __file__, "--worker", "--device", "cpu", "--arm", args.arm,
-                            "--steps", str(args.steps), "--batch", str(args.batch), "--checkpoint", mode], check=True)
+        for mode in ('off', 'on') if args.checkpoint == 'both' else (args.checkpoint,):
+            cmd = [sys.executable, __file__, '--worker']
+            for key, value in vars(args).items():
+                if key != 'worker':
+                    cmd.extend(['--' + key, str(mode if key == 'checkpoint' else value)])
+            subprocess.run(cmd, check=True)
         return
     import resource
+    import statistics
     import time
     import torch
-    from algorithms.mem_wm.backbones.kwm3d import KineticBlockworldModel
-    torch.manual_seed(1729)
+    from omegaconf import OmegaConf
+    from algorithms.mem_wm.backbones.kwm3d import create_kwm3d_model
+    torch.manual_seed(0)
     torch.set_num_threads(8)
-    model = KineticBlockworldModel(arm=args.arm, checkpoint_steps=args.checkpoint == "on",
-                                  oracle_velocity="incoming_object")
-    x = torch.rand(args.batch, 10, 3, 128, 128)
-    target = torch.rand(args.batch, 5, 3, 128, 128)
-    actions = torch.tensor([4, 2, 4, 4, 0, 4, 2, 1, 4, 4, 2, 4, 0, 4, 4]).expand(args.batch, -1)
-    metadata = {"block_vel_object_incoming": torch.rand(args.batch, 15, 10, 2) * 1.5 - .75,
-                "block_valid": torch.ones(args.batch, 15, 10, dtype=torch.bool)}
+    torch.set_float32_matmul_precision("high")  # same setting as experiments/base_exp.py
+    if args.device == 'cuda' and not torch.cuda.is_available():
+        raise RuntimeError('CUDA requested but unavailable under CUDA_VISIBLE_DEVICES')
+    cfg = compose_pilot('train/pilot_c', [f'algorithm.backbone.arm={args.arm}',
+        f'algorithm.backbone.checkpoint_steps={str(args.checkpoint == "on").lower()}'])
+    model = create_kwm3d_model(cfg.algorithm.backbone).to(args.device).train()
+    optim = torch.optim.AdamW(model.parameters(), lr=cfg.experiment.training.lr,
+                             betas=tuple(cfg.experiment.training.optim.optimizer_beta),
+                             weight_decay=cfg.experiment.training.weight_decay)
+    total = args.context + args.prediction
+    x = torch.rand(args.batch, args.context, 3, 128, 128, device=args.device)
+    target = torch.rand(args.batch, args.prediction, 3, 128, 128, device=args.device)
+    actions = torch.tensor(([4, 2, 4, 4, 0, 4, 2, 1] * ((total+7)//8))[:total], device=args.device).expand(args.batch, -1)
+    metadata = {'block_vel_object_incoming': torch.rand(args.batch, total, 10, 2, device=args.device)*1.5-.75,
+                'block_valid': torch.ones(args.batch, total, 10, dtype=torch.bool, device=args.device)}
+    sync = (lambda: torch.cuda.synchronize()) if args.device == 'cuda' else (lambda: None)
     times = []
-    for _ in range(args.steps):
-        model.zero_grad(set_to_none=True)
+    for step in range(args.warmup + args.steps):
+        optim.zero_grad(set_to_none=True)
+        sync()
+        if step == args.warmup and args.device == 'cuda':
+            torch.cuda.reset_peak_memory_stats()
         started = time.perf_counter()
-        output = model(x, actions[:, :10], actions[:, 10:], metadata=metadata)
-        (output - target).square().mean().backward()
-        times.append(time.perf_counter() - started)
-    # Checkpoint retains one full input map per step. Decimal MB/GB are
-    # projections only; actual GPU peaks also include recompute and other state.
-    node_map_bytes = model.map_processor.world_size**2 * model.embed_dim * x.element_size()
-    saved_input_bytes = node_map_bytes * len(model.lattice)
-    print(json.dumps(dict(arm=args.arm, checkpoint=args.checkpoint, batch=args.batch, context=10, prediction=5,
-                          steps=args.steps, seconds_per_step=sum(times) / len(times), timings=times,
-                          peak_rss_mib=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024,
-                          parameters=sum(p.numel() for p in model.parameters()), threads=8,
-                          nodes=len(model.lattice), node_map_bytes=node_map_bytes,
-                          saved_input_bytes_per_sample_step=saved_input_bytes,
-                          saved_input_bytes_per_batch_step=saved_input_bytes * args.batch,
-                          projected_saved_input_gb_batch8_90=saved_input_bytes * 8 * 90 / 1e9,
-                          projected_saved_input_gb_batch8_140=saved_input_bytes * 8 * 140 / 1e9)), flush=True)
+        for _ in range(args.accumulate):
+            output = model(x, actions[:, :args.context], actions[:, args.context:],
+                           target_seq=target, teacher_forcing_ratio=cfg.algorithm.teacher_forcing, metadata=metadata)
+            ((output-target).square().mean()/args.accumulate).backward()
+            del output
+        torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.experiment.training.optim.gradient_clip_val)
+        optim.step()
+        sync()
+        if step >= args.warmup:
+            times.append(time.perf_counter()-started)
+    result = dict(arm=args.arm, checkpoint=args.checkpoint, device=args.device, batch=args.batch,
+                  accumulate=args.accumulate, context=args.context, prediction=args.prediction,
+                  steps=args.steps, warmup=args.warmup, seconds_per_step_mean=statistics.mean(times),
+                  float32_matmul_precision=torch.get_float32_matmul_precision(),
+                  seconds_per_step_median=statistics.median(times), timings=times,
+                  peak_rss_mib=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1024,
+                  backbone=OmegaConf.to_container(cfg.algorithm.backbone, resolve=True))
+    if args.device == 'cuda':
+        result.update(max_memory_allocated_mib=torch.cuda.max_memory_allocated()/2**20,
+                      max_memory_reserved_mib=torch.cuda.max_memory_reserved()/2**20)
+    print(json.dumps(result), flush=True)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

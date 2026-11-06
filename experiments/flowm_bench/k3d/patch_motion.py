@@ -119,6 +119,9 @@ def summarize(rows, source, k):
 
 @torch.inference_mode()
 def main():
+    from .trained_lift import dispatch_checkpoint
+    if dispatch_checkpoint("patch"):
+        return
     start = time.perf_counter()
     paths = clips("k3d_v_validation",200)
     for variant,k in (("tokens",8),("tokens",32),("h_new",8),("h_new",32),("tokens",256)):

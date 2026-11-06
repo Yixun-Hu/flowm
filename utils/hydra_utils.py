@@ -316,6 +316,13 @@ def validate_shortcode_params(argv: list[str], config_path: str) -> None:
     for arg in argv:
         if arg.startswith("shortcode="):
             shortcode_path = arg.split("=", 1)[1]  # Use split with maxsplit=1 to handle paths with = signs
+            if shortcode_path.startswith("["):
+                paths = OmegaConf.from_dotlist([f"paths={shortcode_path}"]).paths
+                for path in paths:
+                    valid, error = validate_shortcode(path, config_path)
+                    if not valid:
+                        raise ValueError(error)
+                continue
             
             # Validate the shortcode path
             is_valid, error_msg = validate_shortcode(shortcode_path, config_path)

@@ -1,0 +1,11 @@
+# @package _global_
+# Append after either pilot shortcode. Lightning max_steps counts optimizer steps;
+# val_check_interval counts batches, so double it with accumulation.
+experiment:
+  training:
+    batch_size: 4
+    max_steps: 6000
+    optim:
+      accumulate_grad_batches: 2
+  validation:
+    val_every_n_step: 2000

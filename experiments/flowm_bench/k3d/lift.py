@@ -67,6 +67,9 @@ def read_cache(path):
 
 
 def main():
+    from .trained_lift import dispatch_checkpoint
+    if dispatch_checkpoint("lift"):
+        return
     p = argparse.ArgumentParser()
     p.add_argument("--split", default="k3d_v_validation")
     p.add_argument("--clips", type=int, default=200)

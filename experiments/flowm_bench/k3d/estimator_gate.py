@@ -134,6 +134,9 @@ def format_row(key, values, clip, seconds):
 
 
 def main():
+    from .trained_lift import dispatch_checkpoint
+    if dispatch_checkpoint("gate"):
+        return
     p = argparse.ArgumentParser()
     p.add_argument("--clips", type=int, default=200)
     p.add_argument("--batch-size", type=int, default=8)

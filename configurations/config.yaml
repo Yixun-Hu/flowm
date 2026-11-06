@@ -10,6 +10,7 @@ defaults:
   - ckpt_map: null # mapping to the location of checkpoints on this server
 
 debug: false # global debug flag will be passed into configuration of experiment, dataset and algorithm
+seed: null # opt-in process and dataloader seeding; null preserves existing behavior
 
 wandb:
   entity: null # wandb account name / organization name 

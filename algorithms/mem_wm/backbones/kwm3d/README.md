@@ -188,10 +188,11 @@ v9. Append `exp/blockworld/kwm3d/train/pilot_50_40` for 90-frame clips.
 Append `exp/blockworld/kwm3d/screening_finetune` for the 50+40 pilot, released
 initialization with rebuilt mixing, a fresh optimizer and 5,000 steps; e.g. the
 Hydra list is `shortcode=[exp/blockworld/kwm3d/train/a,exp/blockworld/kwm3d/screening_finetune]`.
-No training configuration was launched.
+That initial backbone implementation did not launch training; the Pilot section
+below records the later two-step CPU smoke runs.
 
 Inference uses `shortcode=exp/blockworld/kwm3d/infer/metrics_140/k3d_v_70ctx`,
-with 70+70 frames and the released metric list plus `block_mse`. Set `load` and
+with 70+70 frames and `[mse, psnr, ssim, block_mse]`. Set `load` and
 `algorithm.backbone.arm` to the trained kinetic checkpoint. It deliberately does
 not pretend a released FloWM checkpoint is a trained A checkpoint.
 
@@ -300,6 +301,449 @@ has not been verified under `torch.compile`, TorchScript or export.
 The optional plain convolution intentionally relinquishes C4 equivariance.
 
 Maintainer decision (2026-11-04): use `incoming_object` for A-oracle and retain
-`raw` for diagnostics. Remaining decisions: await the independent stage-1 kill tests;
-measure GPU memory/time before assigning budgets; verify training split
-availability and select a trained arm checkpoint for inference.
+`raw` for diagnostics. Stage 1 subsequently failed on the frozen released lift;
+Addendum 2 authorizes the pilot below after the C4 chain finishes.
+
+## Pilot (Addendum 2, CPU preparation 2026-11-05/06)
+
+The protocol in `experiments/flowm_bench/docs/KINETIC3D_model_design.md`,
+**Addendum 2**, governs this pilot. C and A-oracle start from scratch with seed 0,
+50 context + 40 prediction frames, 6,000 **optimizer** steps, batch 8,
+AdamW (1e-4, betas 0.9/0.99, weight decay 1e-3), constant learning rate,
+gradient norm clipping 1, teacher forcing 0.125, fp32 and step checkpointing.
+A-oracle uses `incoming_object`, including true velocities during prediction.
+The pooled write and C4 map convolution follow the registered arm definition.
+Neither arm uses EMA or released-weight initialization.
+
+`pilot_c` composes the C/base and 50+40 shortcodes; `pilot_a_oracle` inherits
+that complete pilot configuration and selects the oracle arm. Checkpoints are
+retained every 1,000 optimizer steps, including `step-006000.ckpt`; there is no
+checkpoint selection. Validation runs every 1,000 steps on four batches of eight
+90-frame clips, logging MSE, PSNR and all block splits. Sanity validation is off.
+`strategy: auto` selects the single-device strategy. The trainer now accepts
+`experiment.accelerator=cpu` explicitly; the default remains `auto`.
+
+Lightning **2.6.6** implements `global_step` as
+`automatic_optimization.optim_progress.optimizer_steps` and tests `max_steps`
+against that counter (`lightning/pytorch/loops/training_epoch_loop.py:113`).
+An executable CPU test confirms accumulation 2 processes four batches for two
+optimizer steps and validates at step 2 when the batch interval is four.
+`pilot_bs4_accum2` therefore keeps `max_steps=6000`, sets batch 4/accumulation 2,
+and changes the validation **batch** interval to 2,000. Checkpoint cadence
+continues to count optimizer steps. Both arms must use the same fallback.
+
+`seed: null` leaves existing process-seeding behavior unchanged. `seed: 0`
+uses Lightning's `seed_everything(..., workers=True)` for Python, NumPy and
+PyTorch. The dataloader generator uses the run seed; the existing worker hook
+seeds Python/NumPy from each worker's distinct PyTorch initial seed. This covers
+initialization, teacher-forcing draws, shuffled training batches and workers;
+it does not promise bitwise deterministic CUDA kernels.
+
+Pilot data access sets `metadata_read_only: true`: constructing a dataset
+never creates NAS metadata, even for other registered splits. The maintainer
+must supply `data/blockworld/metadata/k3d_v_training.pt` before the real-split
+dry run or training. That index was absent during this preparation. All CPU
+training smoke runs override the training split to `k3d_v_validation`.
+
+The new `validation_first_clips: true` selects the **first 1,000 videos in the
+metadata index, starting at frame 0**, with no shuffle; the current validation
+index is sorted by path (verified). Both horizons use the same videos in the
+same order. `num_default_clips` truncates this list. This is an opt-in correction:
+the older validation path samples seeded random starts and shuffles videos.
+The dataset still uses the original CPU decoder, resize, RGB `/255` convention,
+and incoming action alignment. The test split is never used.
+
+### Maintainer GPU commands (not executed during preparation)
+
+Run from `/home/yixunhu/codespace/flowm`. These commands are for the maintainer's
+existing launcher, **only after `C4 CHAIN DONE` and the free-memory gate**.
+No scheduling or GPU process was started by this work. First prepare the missing
+training metadata and run the maintainer's real-split dry run.
+
+```bash
+P=/home/yixunhu/miniconda3/envs/flowm/bin/python
+export CUDA_VISIBLE_DEVICES=1 OMP_NUM_THREADS=8 MKL_NUM_THREADS=8 WANDB_MODE=offline
+export PYTHONDONTWRITEBYTECODE=1
+export TMPDIR="$PWD/algorithms/mem_wm/backbones/kwm3d/.scratch/tmp"
+export XDG_CACHE_HOME="$PWD/algorithms/mem_wm/backbones/kwm3d/.scratch/cache"
+export MPLCONFIGDIR="$PWD/algorithms/mem_wm/backbones/kwm3d/.scratch/matplotlib"
+mkdir -p "$TMPDIR" "$XDG_CACHE_HOME" "$MPLCONFIGDIR" outputs/k3d_pilot
+COMMON=(algorithm=flowm_video dataset=blockworld ckpt_map=default
+        wandb.mode=offline wandb.entity=local wandb.project=flowm_bench
+        experiment.devices=1 experiment.accelerator=gpu)
+
+# Ten optimizer steps per arm: two warmups plus eight measured steps (<=50).
+"$P" scripts/kwm3d_bench.py --device cuda --arm c --context 50 --prediction 40 \
+  --batch 8 --accumulate 1 --warmup 2 --steps 8 --checkpoint on \
+  > outputs/k3d_pilot/bench_c.log 2>&1
+"$P" scripts/kwm3d_bench.py --device cuda --arm a_oracle --context 50 --prediction 40 \
+  --batch 8 --accumulate 1 --warmup 2 --steps 8 --checkpoint on \
+  > outputs/k3d_pilot/bench_a_oracle.log 2>&1
+```
+
+Each JSON record contains the resolved Hydra backbone, mean/median seconds per
+optimizer step (including accumulation, clipping and AdamW), and CUDA allocated /
+reserved peak MiB reset after warmup. CUDA visibility is preserved in CUDA mode;
+CPU mode hides CUDA. CPU RSS is reported separately. Inputs are synthetic, with
+ten valid oracle slots; timings exclude real-data loading and validation.
+Do not infer a GPU budget from CPU timings.
+
+Before training, project `6000 * (mean_C + mean_A_oracle) / 86400` GPU-days.
+**If this exceeds four days, stop and report.** Report actual elapsed time as well,
+including validation and I/O. If either arm's batch 8 cannot fit in the *free*
+memory, benchmark **both** with `--batch 4 --accumulate 2`, recompute the cap,
+and use the fallback shortcode for both trainings. `--checkpoint both` can
+measure the optional off/on comparison; checkpoint-off at pilot batch/length
+may OOM and is not the mode used for training.
+
+Exactly one command launches each standard arm, sequentially:
+
+```bash
+"$P" -m main shortcode=exp/blockworld/kwm3d/train/pilot_c \
+  +name=k3d_pilot_c "${COMMON[@]}" hydra.run.dir=outputs/k3d_pilot/c
+"$P" -m main shortcode=exp/blockworld/kwm3d/train/pilot_a_oracle \
+  +name=k3d_pilot_a_oracle "${COMMON[@]}" hydra.run.dir=outputs/k3d_pilot/a_oracle
+```
+
+For fallback, replace only the corresponding `shortcode=` argument with
+`'shortcode=[exp/blockworld/kwm3d/train/pilot_c,exp/blockworld/kwm3d/train/pilot_bs4_accum2]'`
+or
+`'shortcode=[exp/blockworld/kwm3d/train/pilot_a_oracle,exp/blockworld/kwm3d/train/pilot_bs4_accum2]'`.
+The CLI now validates Hydra shortcode lists as well as single shortcodes.
+
+Four evaluations of the final checkpoints, then the statistics:
+
+```bash
+for arm in c a_oracle; do
+  for horizon in 140 280; do
+    "$P" -m main \
+      "shortcode=exp/blockworld/kwm3d/infer/metrics_${horizon}/k3d_v_70ctx" \
+      "+name=k3d_pilot_${arm}_${horizon}" "${COMMON[@]}" \
+      "algorithm.backbone.arm=$arm" \
+      "load=$PWD/outputs/k3d_pilot/$arm/checkpoints/step-006000.ckpt" \
+      "hydra.run.dir=outputs/k3d_pilot/$arm/eval_$horizon" \
+      "algorithm.logging.per_clip_dump=outputs/k3d_pilot/$arm/eval_$horizon/dump"
+  done
+done
+"$P" scripts/kwm3d_pilot_stats.py \
+  --c outputs/k3d_pilot/c/eval_140/dump \
+  --a_oracle outputs/k3d_pilot/a_oracle/eval_140/dump \
+  --baseline experiments/flowm_bench/k3d/results/pilot_baseline_repeat_140 \
+  --other-c outputs/k3d_pilot/c/eval_280/dump \
+  --other-a-oracle outputs/k3d_pilot/a_oracle/eval_280/dump \
+  --output outputs/k3d_pilot/pilot_stats_140.md
+"$P" scripts/kwm3d_pilot_stats.py --horizon 280 \
+  --c outputs/k3d_pilot/c/eval_280/dump \
+  --a_oracle outputs/k3d_pilot/a_oracle/eval_280/dump \
+  --baseline experiments/flowm_bench/k3d/results/pilot_baseline_repeat_280 \
+  --output outputs/k3d_pilot/pilot_stats_280.md
+```
+
+Evaluation metrics are exactly `[mse, psnr, ssim, block_mse]`; no FVD/LPIPS
+weights are downloaded. The validation log retains `prediction/mse`,
+`prediction/psnr`, `prediction/ssim` and `validation/prediction/block_mse*`.
+The kwm3d epoch hook also computes/resets these metrics during training; the
+older common hook omitted FIT metrics and retained their state across epochs.
+`load=` passes a local checkpoint to Lightning. Relative paths resolve from the
+repository working directory (Hydra does not change it here); absolute paths
+are recommended above. Both arms restored through this path in CPU smoke runs.
+A strict backbone check rejects missing, extra or mismatched tensors before the
+common checkpoint mixin can fill or discard keys. The trained-lift loader uses
+the saved `.hydra/config.yaml` beside the checkpoint directory when available;
+otherwise it composes the full pilot model config and loads strictly.
+
+### Dumps and decision rule
+
+`algorithm.logging.per_clip_dump=null` is the default and allocates no dump.
+When enabled it requires one device and one validation split, stores arrival
+order, and writes `per_clip.pt`, `per_clip.csv`, and `pooled.json` at validation
+end. Training writes into `DIR/step-NNNNNN/`; standalone evaluation writes into
+`DIR/`. Only predicted frames count, respecting `n_metrics_frames` if set.
+Dump-on execution checks pooled MSE and every block split against the actual
+logged metric state with relative tolerance 1e-6 (including multiple batches).
+
+The portable torch payload has version 1, `paths`, `dataset_indices`,
+`context_frames`, `n_frames`, `metric_names`, and `[clips,7]` tensors
+`squared_error` (float64) and `element_count` (int64). Columns are full MSE,
+all blocks, three speed bins, turn, non-turn. `block_pixel_count [clips,6]`
+counts spatial pixels; `element_count` for these columns is three times that
+count because SSE sums RGB channels. Thus MSE is SSE / element_count.
+`pooled` is the ratio of column sums, never an average of batch or clip means.
+CSV includes every numerator, denominator, per-clip value and block pixel count.
+Empty regions have zero numerator/count and NaN per-clip MSE. Accumulation uses
+float64 to avoid drift over 1,000 clips; masks and image values are unchanged.
+
+The statistics script checks arm paths/order, indices, horizon and region
+counts. It reports pooled values, relative reductions, mean paired per-clip
+A-oracle minus C, and the 2.5/97.5 percentiles of **10,000** clip bootstrap
+resamples from NumPy Generator seed **20261105**. Empty-region clips are counted
+and excluded from that split's paired mean, but remain in pooled sums. An
+entirely empty primary region is rejected as undefined. Empty secondary splits
+report NaN. The full baseline can accompany a smaller smoke-run sample; both
+sample counts are printed. Scientific pilot reporting requires the full 1,000.
+
+At **140 frames**, INCONCLUSIVE is checked first if both arms' pooled block MSE
+are >= repeat-last. Otherwise PASS requires oracle <= 0.90*C **and** CI upper
+bound < 0; otherwise FAIL. The 280-frame table is explicitly secondary. The
+optional other-horizon arguments report a sign-disagreement flag. One seed's
+clip CI does not measure training-seed variance. Report at this boundary and
+stop before stage 3; an estimator training run still requires the trained-lift
+gate to pass and the user's approval.
+
+### Trained-lift gate, after the pilot (CPU)
+
+```bash
+bash experiments/flowm_bench/k3d/run_cpu.sh trained_lift \
+  --checkpoint outputs/k3d_pilot/a_oracle/checkpoints/step-006000.ckpt \
+  --arm a_oracle --clips 200
+```
+
+This runs the pooled observation-only lift, direct 3x3 patch-motion diagnostic,
+and estimator gate with **mask residuals, K=8, sigma=1,
+intrinsic_incoming truth**, on 140 observed frames per clip. The backbone's
+`observation_write` is shared with arm A's `observation_imprint`; no lift is
+reimplemented in the runner. Fixed projection and fp16 cache conventions match
+stage 1. Model construction uses `create_kwm3d_model` and strict restoration.
+Caches are under `experiments/flowm_bench/k3d/.scratch/trained_lifts/SHA256/ARM/`;
+new CSVs and provenance are under `outputs/k3d_trained_lifts/SHA256/ARM/`.
+Existing released-weight reports/CSVs are untouched. The existing `lift`,
+`patch_motion`, and `estimator_gate` entrypoints also accept `--checkpoint`,
+`--arm`, and `--clips` to run just the corresponding stage. Without these
+arguments their released-weight paths retain their behavior.
+
+### CPU verification and limits
+
+All executed commands hid CUDA and set `OMP_NUM_THREADS=8 MKL_NUM_THREADS=8
+WANDB_MODE=offline`; Python was `/home/yixunhu/miniconda3/envs/flowm/bin/python`.
+Caches/temp files and command logs live in the kwm3d `.scratch/`, except the
+stage-1 runner's caches under its own `.scratch/`. No GPU computation, GPU
+memory query, campaign training, NAS writes, KWM dependency edits, or commits
+were performed. The editable dependency was `kwm-wt-k3d`, `k3d-base`, revision
+`c7067d3c6b76cdd4eb8121c9bcef4d6957590c0c` (the stage-1 follow-up already
+established parity with the earlier revision documented above).
+
+The dry-run overrides are deliberately small: `experiment.accelerator=cpu`,
+`experiment.devices=1`, batch 1, workers 0, max_steps 2, 8+4 frames, validation
+at step 2 over two separate one-clip batches, and checkpoint every two steps.
+Training uses `k3d_v_validation`, because the training index is absent. Each
+checkpoint was then evaluated at full 70+70 on two clips and 70+210 on one clip.
+All six dumps passed the runtime 1e-6 pooling checks. Both checkpoints contain
+`global_step=2`, AdamW step counters of 2 and finite model weights. Paths are
+`outputs/k3d_pilot_cpu_{c,a_oracle}/checkpoints/step-000002.ckpt`,
+`train_dump/step-000002/`, and `eval_{140,280}/dump/` under each arm directory.
+
+The first C command with `wandb.mode=offline` failed before model execution:
+`ServicePollForTokenError: wandb-core exited with code 1`. CPU smoke commands
+therefore use **`wandb.mode=disabled`**, and skip video logging with
+`algorithm.logging.max_num_videos=0`; the pilot shortcodes still use offline
+W&B. Disabled logging exposed an existing uninitialized `resume` local in
+`main.py`, which is fixed. Offline W&B service startup on the maintainer's host
+remains unverified here. The initial C evaluation log used enum-form metric
+labels; the hook now uses the existing `prediction/mse` spelling, covered by
+tests and the subsequent oracle evaluations. Values were unaffected.
+
+Final tests: **93 passed, 5 warnings, 52.60 s pytest time / 55.12 s command wall**
+for `tests/kwm3d tests/k3d`, below five minutes. Warnings concern existing
+pkg_resources/timm/TF32 APIs and the intentionally single-process dataloaders.
+Tests cover config composition, first-clip selection and read-only metadata,
+multiple validation batches and metric parity, empty regions, strict C/oracle
+state restoration, all three verdicts, margin/CI boundaries, bootstrap seed,
+clip mismatches, horizon sign diagnostics, seeding, accumulation semantics,
+pooled-lift parity and a real CPU benchmark subprocess (10+5, batch 1,
+accumulation 2). The earlier full pass had 92 tests in 48.41 s; the additional
+sign-diagnostic test and final default-off precision check prompted the final
+pass. The final statistics subset also passed (17 tests, 9.10 s).
+
+The CPU micro-benchmark command was:
+
+```bash
+/home/yixunhu/miniconda3/envs/flowm/bin/python scripts/kwm3d_bench.py \
+  --device cpu --arm c --context 10 --prediction 5 --batch 1 \
+  --steps 1 --warmup 2 --checkpoint both
+```
+
+Output: `.scratch/pilot_bench_cpu.log`; approximately 43.87 s wall, measured
+from log creation to final output. After two warmups, C took 2.45460 s/optimizer
+step without checkpointing and 3.55622 s with checkpointing; corresponding
+process peak RSS was 3152.64 / 1984.29 MiB. Each mode has one measured sample,
+so mean equals median. The A-oracle CPU path with accumulation 2 is also
+exercised by the subprocess test. Concurrent CPU baseline decoding and shared
+host load make these smoke timings unsuitable for GPU budget extrapolation.
+
+The trained-lift proof used the oracle step-2 checkpoint on two clips, hash
+`3ca3aa6eaa79bc7a60b4a5b6390ef709aa123272937076bb191f44150005b9c3`.
+It ran all three stages with K=8, sigma=1, mask residuals and
+intrinsic-incoming truth. Its final command took 19.31 s (including imports;
+existing lift caches reused); output is
+`outputs/k3d_trained_lifts/3ca3aa6eaa79bc7a60b4a5b6390ef709aa123272937076bb191f44150005b9c3/a_oracle/`.
+The first uncached proof is separately recorded below. Its numerical verdict
+has no scientific meaning after two updates.
+
+No pilot-protocol settings or kill thresholds were changed. The first-clip
+option corrects the pre-existing random-start evaluation behavior to match
+Addendum 2. CPU-only departures are the explicitly requested small sample,
+short-clip and validation-training-split overrides, plus disabled W&B/video
+logging after the offline service failure. The baseline shares one 280-frame
+decode between horizons without changing either metric window. Post-pilot
+results use a new checkpoint-specific output directory; no released result CSV
+was overwritten. Only zero-map write reuse was factored out of the backbone;
+its forward arithmetic and state-dict keys are unchanged.
+
+Still unverified: actual GPU memory/timing, feasibility of batch 8 or fallback
+batch 4, the four-day projection, 6,000-step convergence/stability, real training
+metadata availability and offline W&B on the maintainer's host. Ensure the
+correct arm and final checkpoint are supplied; wrong-arm or incomplete state
+is now rejected strictly. A rerun using the same output directory can overwrite
+same-step artifacts, so retain completed pilot directories before rerunning.
+
+### Repeat-last baseline and command record
+
+The baseline command was:
+
+```bash
+/home/yixunhu/miniconda3/envs/flowm/bin/python scripts/kwm3d_baseline_repeat.py
+```
+
+It used 1,000 validation clips at both horizons, in the same first-video/frame-0
+order as the evaluation shortcodes. Measured processing time was **788.298 s**;
+command wall was approximately **797.84 s** from log creation to final output,
+including imports. Log: `.scratch/baseline.log`. Both dump directories contain
+`per_clip.pt`, `per_clip.csv` and `pooled.json`:
+`experiments/flowm_bench/k3d/results/pilot_baseline_repeat_{140,280}/`.
+These small sufficient-statistic artifacts are explicitly unignored for review.
+
+| Horizon | Predicted frames | Clips | Pooled block MSE | Full-frame MSE |
+|---|---:|---:|---:|---:|
+| 140 | 70 | 1,000 | 0.20110865545138992 | 0.04059602298643912 |
+| 280 | 210 | 1,000 | 0.2025386558195779 | 0.04125877101735599 |
+
+Both statistics CLI smoke runs succeeded. Their outputs are
+`outputs/k3d_pilot_cpu_stats_140.md` and `outputs/k3d_pilot_cpu_stats_280.md`.
+The two-clip primary printed INCONCLUSIVE, the one-clip secondary printed FAIL,
+and the pooled improvement signs agreed. **These are plumbing checks only**;
+the arm sample counts are tiny, the models have only two updates, and the
+baseline contains 1,000 clips. They do not decide the registered pilot.
+
+The table records subprocess wall time (including imports) for every main-entry
+smoke command, statistics command, and trained-lift proof. Logs use
+`.scratch/LABEL.log`. The failed offline attempt's C log was reused on retry;
+its W&B startup log remains under
+`outputs/k3d_pilot_cpu_c/wandb/offline-run-20261105_235536-07bc1m06/logs/debug.log`.
+The initial trained-lift proof's new result files were relocated under `outputs/`
+and regenerated from its hash-isolated lift cache by the final proof; no released
+result was removed. Exact expanded commands follow the table. The shared CPU
+environment above applies to each. Auxiliary audit scripts verified checkpoints,
+AdamW counters, all six dumps and the baseline identities/windows/counts; their
+record is `.scratch/pilot_artifact_audit.json`.
+
+| Command label | Wall seconds | Exit | Output location |
+|---|---:|---:|---|
+| dry_train_c | 12.108 | 1 | `outputs/k3d_pilot_cpu_c` |
+| dry_train_c | 21.248 | 0 | `outputs/k3d_pilot_cpu_c` |
+| dry_eval_c_140 | 31.253 | 0 | `outputs/k3d_pilot_cpu_c/eval_140/dump` |
+| dry_eval_c_280 | 30.758 | 0 | `outputs/k3d_pilot_cpu_c/eval_280/dump` |
+| dry_train_a_oracle | 19.047 | 0 | `outputs/k3d_pilot_cpu_a_oracle` |
+| dry_eval_a_oracle_140 | 23.054 | 0 | `outputs/k3d_pilot_cpu_a_oracle/eval_140/dump` |
+| dry_eval_a_oracle_280 | 24.197 | 0 | `outputs/k3d_pilot_cpu_a_oracle/eval_280/dump` |
+| trained_lift_cpu | 22.097 | 0 | `outputs/k3d_trained_lifts/3ca3aa6eaa79bc7a60b4a5b6390ef709aa123272937076bb191f44150005b9c3/a_oracle/` |
+| trained_lift_cpu_final | 19.305 | 0 | `outputs/k3d_trained_lifts/3ca3aa6eaa79bc7a60b4a5b6390ef709aa123272937076bb191f44150005b9c3/a_oracle/` |
+| pilot_stats_tests | 11.495 | 0 | `.scratch/pilot_stats_tests.log` |
+| pilot_tests_final | 55.117 | 0 | `.scratch/pilot_tests_final.log` |
+| dry_stats_140 | 1.605 | 0 | `outputs/k3d_pilot_cpu_stats_140.md` |
+| dry_stats_280 | 1.637 | 0 | `outputs/k3d_pilot_cpu_stats_280.md` |
+
+<details>
+<summary>Exact expanded CPU commands (in execution order)</summary>
+
+dry_train_c — 12.108 s, exit 1:
+
+```bash
+/home/yixunhu/miniconda3/envs/flowm/bin/python -m main shortcode=exp/blockworld/kwm3d/train/pilot_c +name=k3d_pilot_cpu_c algorithm=flowm_video dataset=blockworld ckpt_map=default wandb.mode=offline wandb.entity=local wandb.project=flowm_bench experiment.devices=1 experiment.accelerator=cpu experiment.training.dataloader.num_workers=0 experiment.validation.dataloader.num_workers=0 algorithm.logging.max_num_videos=0 hydra.run.dir=outputs/k3d_pilot_cpu_c 'experiment.training.splits_included=[k3d_v_validation]' experiment.training.batch_size=1 experiment.validation.batch_size=1 dataset.max_frames=12 dataset.n_frames=12 algorithm.tasks.prediction.context_frames=8 experiment.training.max_steps=2 experiment.validation.val_every_n_step=2 experiment.validation.limit_batch=2 dataset.num_default_clips=2 experiment.training.checkpointing.every_n_train_steps=2 algorithm.logging.per_clip_dump=outputs/k3d_pilot_cpu_c/train_dump
+```
+
+dry_train_c — 21.248 s, exit 0:
+
+```bash
+/home/yixunhu/miniconda3/envs/flowm/bin/python -m main shortcode=exp/blockworld/kwm3d/train/pilot_c +name=k3d_pilot_cpu_c algorithm=flowm_video dataset=blockworld ckpt_map=default wandb.mode=disabled wandb.entity=local wandb.project=flowm_bench experiment.devices=1 experiment.accelerator=cpu experiment.training.dataloader.num_workers=0 experiment.validation.dataloader.num_workers=0 algorithm.logging.max_num_videos=0 hydra.run.dir=outputs/k3d_pilot_cpu_c 'experiment.training.splits_included=[k3d_v_validation]' experiment.training.batch_size=1 experiment.validation.batch_size=1 dataset.max_frames=12 dataset.n_frames=12 algorithm.tasks.prediction.context_frames=8 experiment.training.max_steps=2 experiment.validation.val_every_n_step=2 experiment.validation.limit_batch=2 dataset.num_default_clips=2 experiment.training.checkpointing.every_n_train_steps=2 algorithm.logging.per_clip_dump=outputs/k3d_pilot_cpu_c/train_dump
+```
+
+dry_eval_c_140 — 31.253 s, exit 0:
+
+```bash
+/home/yixunhu/miniconda3/envs/flowm/bin/python -m main shortcode=exp/blockworld/kwm3d/infer/metrics_140/k3d_v_70ctx +name=k3d_pilot_cpu_c_140 algorithm=flowm_video dataset=blockworld ckpt_map=default wandb.mode=disabled wandb.entity=local wandb.project=flowm_bench experiment.devices=1 experiment.accelerator=cpu experiment.training.dataloader.num_workers=0 experiment.validation.dataloader.num_workers=0 algorithm.logging.max_num_videos=0 hydra.run.dir=outputs/k3d_pilot_cpu_c/eval_140 algorithm.backbone.arm=c load=/home/yixunhu/codespace/flowm/outputs/k3d_pilot_cpu_c/checkpoints/step-000002.ckpt dataset.num_default_clips=2 experiment.validation.batch_size=1 algorithm.logging.per_clip_dump=outputs/k3d_pilot_cpu_c/eval_140/dump
+```
+
+dry_eval_c_280 — 30.758 s, exit 0:
+
+```bash
+/home/yixunhu/miniconda3/envs/flowm/bin/python -m main shortcode=exp/blockworld/kwm3d/infer/metrics_280/k3d_v_70ctx +name=k3d_pilot_cpu_c_280 algorithm=flowm_video dataset=blockworld ckpt_map=default wandb.mode=disabled wandb.entity=local wandb.project=flowm_bench experiment.devices=1 experiment.accelerator=cpu experiment.training.dataloader.num_workers=0 experiment.validation.dataloader.num_workers=0 algorithm.logging.max_num_videos=0 hydra.run.dir=outputs/k3d_pilot_cpu_c/eval_280 algorithm.backbone.arm=c load=/home/yixunhu/codespace/flowm/outputs/k3d_pilot_cpu_c/checkpoints/step-000002.ckpt dataset.num_default_clips=1 experiment.validation.batch_size=1 algorithm.logging.per_clip_dump=outputs/k3d_pilot_cpu_c/eval_280/dump
+```
+
+dry_train_a_oracle — 19.047 s, exit 0:
+
+```bash
+/home/yixunhu/miniconda3/envs/flowm/bin/python -m main shortcode=exp/blockworld/kwm3d/train/pilot_a_oracle +name=k3d_pilot_cpu_a_oracle algorithm=flowm_video dataset=blockworld ckpt_map=default wandb.mode=disabled wandb.entity=local wandb.project=flowm_bench experiment.devices=1 experiment.accelerator=cpu experiment.training.dataloader.num_workers=0 experiment.validation.dataloader.num_workers=0 algorithm.logging.max_num_videos=0 hydra.run.dir=outputs/k3d_pilot_cpu_a_oracle 'experiment.training.splits_included=[k3d_v_validation]' experiment.training.batch_size=1 experiment.validation.batch_size=1 dataset.max_frames=12 dataset.n_frames=12 algorithm.tasks.prediction.context_frames=8 experiment.training.max_steps=2 experiment.validation.val_every_n_step=2 experiment.validation.limit_batch=2 dataset.num_default_clips=2 experiment.training.checkpointing.every_n_train_steps=2 algorithm.logging.per_clip_dump=outputs/k3d_pilot_cpu_a_oracle/train_dump
+```
+
+dry_eval_a_oracle_140 — 23.054 s, exit 0:
+
+```bash
+/home/yixunhu/miniconda3/envs/flowm/bin/python -m main shortcode=exp/blockworld/kwm3d/infer/metrics_140/k3d_v_70ctx +name=k3d_pilot_cpu_a_oracle_140 algorithm=flowm_video dataset=blockworld ckpt_map=default wandb.mode=disabled wandb.entity=local wandb.project=flowm_bench experiment.devices=1 experiment.accelerator=cpu experiment.training.dataloader.num_workers=0 experiment.validation.dataloader.num_workers=0 algorithm.logging.max_num_videos=0 hydra.run.dir=outputs/k3d_pilot_cpu_a_oracle/eval_140 algorithm.backbone.arm=a_oracle load=/home/yixunhu/codespace/flowm/outputs/k3d_pilot_cpu_a_oracle/checkpoints/step-000002.ckpt dataset.num_default_clips=2 experiment.validation.batch_size=1 algorithm.logging.per_clip_dump=outputs/k3d_pilot_cpu_a_oracle/eval_140/dump
+```
+
+dry_eval_a_oracle_280 — 24.197 s, exit 0:
+
+```bash
+/home/yixunhu/miniconda3/envs/flowm/bin/python -m main shortcode=exp/blockworld/kwm3d/infer/metrics_280/k3d_v_70ctx +name=k3d_pilot_cpu_a_oracle_280 algorithm=flowm_video dataset=blockworld ckpt_map=default wandb.mode=disabled wandb.entity=local wandb.project=flowm_bench experiment.devices=1 experiment.accelerator=cpu experiment.training.dataloader.num_workers=0 experiment.validation.dataloader.num_workers=0 algorithm.logging.max_num_videos=0 hydra.run.dir=outputs/k3d_pilot_cpu_a_oracle/eval_280 algorithm.backbone.arm=a_oracle load=/home/yixunhu/codespace/flowm/outputs/k3d_pilot_cpu_a_oracle/checkpoints/step-000002.ckpt dataset.num_default_clips=1 experiment.validation.batch_size=1 algorithm.logging.per_clip_dump=outputs/k3d_pilot_cpu_a_oracle/eval_280/dump
+```
+
+trained_lift_cpu — 22.097 s, exit 0:
+
+```bash
+bash experiments/flowm_bench/k3d/run_cpu.sh trained_lift --checkpoint outputs/k3d_pilot_cpu_a_oracle/checkpoints/step-000002.ckpt --arm a_oracle --clips 2
+```
+
+trained_lift_cpu_final — 19.305 s, exit 0:
+
+```bash
+bash experiments/flowm_bench/k3d/run_cpu.sh trained_lift --checkpoint outputs/k3d_pilot_cpu_a_oracle/checkpoints/step-000002.ckpt --arm a_oracle --clips 2
+```
+
+pilot_stats_tests — 11.495 s, exit 0:
+
+```bash
+/home/yixunhu/miniconda3/envs/flowm/bin/python -m pytest tests/kwm3d/test_pilot_stats.py -q -p no:cacheprovider
+```
+
+pilot_tests_final — 55.117 s, exit 0:
+
+```bash
+/home/yixunhu/miniconda3/envs/flowm/bin/python -m pytest tests/kwm3d tests/k3d -q -p no:cacheprovider
+```
+
+dry_stats_140 — 1.605 s, exit 0:
+
+```bash
+/home/yixunhu/miniconda3/envs/flowm/bin/python scripts/kwm3d_pilot_stats.py --c outputs/k3d_pilot_cpu_c/eval_140/dump --a_oracle outputs/k3d_pilot_cpu_a_oracle/eval_140/dump --baseline experiments/flowm_bench/k3d/results/pilot_baseline_repeat_140 --other-c outputs/k3d_pilot_cpu_c/eval_280/dump --other-a-oracle outputs/k3d_pilot_cpu_a_oracle/eval_280/dump --output outputs/k3d_pilot_cpu_stats_140.md
+```
+
+dry_stats_280 — 1.637 s, exit 0:
+
+```bash
+/home/yixunhu/miniconda3/envs/flowm/bin/python scripts/kwm3d_pilot_stats.py --horizon 280 --c outputs/k3d_pilot_cpu_c/eval_280/dump --a_oracle outputs/k3d_pilot_cpu_a_oracle/eval_280/dump --baseline experiments/flowm_bench/k3d/results/pilot_baseline_repeat_280 --output outputs/k3d_pilot_cpu_stats_280.md
+```
+
+</details>
+
+The working tree is intentionally uncommitted. Proposed message: `.scratch/COMMIT_MSG3.txt`.
+
+Final benchmark review aligned `torch.set_float32_matmul_precision("high")`
+with `experiments/base_exp.py` and records that setting in each JSON line.
+This preserves the trainer's fp32/TF32 policy on CUDA rather than benchmarking
+with PyTorch's unrelated default. No CUDA execution occurred. The focused CPU
+subprocess regression passed afterward: **1 test, 22.25 s pytest time /
+24.412 s command wall**, output `.scratch/pilot_bench_final_test.log`.
+
+```bash
+/home/yixunhu/miniconda3/envs/flowm/bin/python -m pytest tests/kwm3d/test_pilot.py::test_benchmark_cpu_cli -q -p no:cacheprovider
+```

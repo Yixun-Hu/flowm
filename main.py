@@ -45,6 +45,8 @@ def run_local(cfg: DictConfig):
     # delay some imports in case they are not needed in non-local envs for submission
     from experiments import build_experiment
     from utils.wandb_utils import OfflineWandbLogger, SpaceEfficientWandbLogger
+    from utils.seed_utils import seed_run
+    seed_run(cfg.get("seed"))
 
     os.environ["WANDB__SERVICE_WAIT"] = "300"
     os.environ["WANDB_API_KEY"] = cfg.wandb.api_key
@@ -136,6 +138,7 @@ def run_local(cfg: DictConfig):
             raise RuntimeError(requeue_error_msg)
 
     # Set up logging with wandb.
+    resume = cfg.get("resume", None)
     if cfg.wandb.mode != "disabled":
         # If resuming, merge into the existing run on wandb.
         # Resume from requeue takes priority

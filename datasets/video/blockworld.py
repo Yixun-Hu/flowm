@@ -412,6 +412,7 @@ class BlockWorldVideoDataset(BaseAdvancedVideoDataset):
             "clip": [start_frame, end_frame],
         }
         if getattr(self.cfg, "load_block_info", False):
+            output["metadata"]["dataset_index"] = idx
             output["metadata"].update(self.load_block_metadata(video_metadata, start_frame, end_frame))
 
         # Handle preprocessing experiments

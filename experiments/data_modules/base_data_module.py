@@ -54,7 +54,9 @@ class BaseDataModule(pl.LightningDataModule):
         self.root_cfg = root_cfg
         self.exp_cfg = root_cfg.experiment
         self.compatible_datasets = compatible_datasets
-        self.deterministic = self.root_cfg.algorithm.logging.deterministic
+        self.run_seed = self.root_cfg.get("seed")
+        self.deterministic = (self.run_seed if self.run_seed is not None
+                              else self.root_cfg.algorithm.logging.deterministic)
         
         
         if self.deterministic is not None:
@@ -122,12 +124,13 @@ class BaseDataModule(pl.LightningDataModule):
                     batch_size=purpose_cfg.batch_size,
                     num_workers=self._get_num_workers(purpose_cfg.dataloader.num_workers),
                     shuffle=self._get_shuffle(dataset, purpose_cfg.dataloader.shuffle),
-                    persistent_workers=purpose == "training",
+                    persistent_workers=purpose == "training" and purpose_cfg.dataloader.num_workers > 0,
                     pin_memory=purpose_cfg.dataloader.pin_memory,
-                    prefetch_factor=purpose_cfg.dataloader.prefetch_factor,
+                    prefetch_factor=purpose_cfg.dataloader.prefetch_factor if purpose_cfg.dataloader.num_workers > 0 else None,
                     generator=self.generator, 
                     collate_fn=collate_fn,  # Add the custom collate function here
-                    worker_init_fn=compose_worker_init_fn(dataset=dataset, fallback_seed_fn=seed_worker, deterministic=self.deterministic),
+                    worker_init_fn=compose_worker_init_fn(dataset=dataset, fallback_seed_fn=seed_worker,
+                        deterministic=None if self.run_seed is not None else self.deterministic),
                 ))
         return dataloaders
 

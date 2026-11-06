@@ -146,8 +146,8 @@ class KineticBlockworldModel(ViTBlockworldModel):
             return self.map_processor(h, frame, mask)
         return self._pooled_write(h, frame, mask, valid)
 
-    def observation_imprint(self, frame, mask=None):
-        """Observation-only lift: shared processor on a zero, single-node map.
+    def observation_write(self, frame, mask=None):
+        """Observation-only pooled write shared by the estimator and CPU gates.
 
         With pooled write all zero-node inputs are identical, so one node is
         exactly equivalent to V zero nodes, with much smaller activation cost.
@@ -157,7 +157,12 @@ class KineticBlockworldModel(ViTBlockworldModel):
         size = self.map_processor.world_size
         zero = frame.new_zeros(frame.shape[0], 1, size, size, self.embed_dim)
         valid = torch.ones(frame.shape[0], 1, dtype=torch.bool, device=frame.device)
-        written = self._pooled_write(zero, frame, mask, valid)[:, 0]
+        return self._pooled_write(zero, frame, mask, valid)[:, 0]
+
+    def observation_imprint(self, frame, mask=None):
+        if mask is None:
+            mask = self._get_fov_mask(frame.device)
+        written = self.observation_write(frame, mask)
         r0, c0 = self.imprint_box
         r1, c1 = self.imprint_end
         with torch.autocast(device_type=frame.device.type, enabled=False):

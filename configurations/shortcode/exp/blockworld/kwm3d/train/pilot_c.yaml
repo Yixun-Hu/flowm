@@ -1,0 +1,38 @@
+# @package _global_
+defaults:
+  - /shortcode/exp/blockworld/kwm3d/train/c
+  - /shortcode/exp/blockworld/kwm3d/train/pilot_50_40
+  - _self_
+seed: 0
+load: null
+wandb:
+  mode: offline
+dataset:
+  metadata_read_only: true
+  validation_first_clips: true
+  num_default_clips: 1000
+algorithm:
+  load_model_state: null
+  logging:
+    metrics: [mse, psnr, block_mse]
+experiment:
+  tasks: [training]
+  devices: 1
+  training:
+    strategy: auto
+    precision: 32-true
+    max_epochs: -1
+    max_steps: 6000
+    batch_size: 8
+    optim:
+      accumulate_grad_batches: 1
+    checkpointing:
+      every_n_train_steps: 1000
+      save_top_k: -1
+      filename: 'step-{step:06d}'
+      auto_insert_metric_name: false
+  validation:
+    strategy: auto
+    val_every_n_step: 1000
+    limit_batch: 4
+    num_sanity_val_steps: 0

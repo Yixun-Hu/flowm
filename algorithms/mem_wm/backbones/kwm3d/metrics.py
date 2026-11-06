@@ -72,13 +72,15 @@ def project_block_masks(block_pos_agent, block_valid, image_size=(128, 128), *, 
     return masks if per_block else masks.any(dim=-3)
 
 
-def block_region_stats(pred, target, mask):
+def block_region_stats(pred, target, mask, *, per_clip=False):
     """Sum of squared RGB errors and the number of channel-pixels selected."""
     if pred.shape != target.shape or mask.shape != (*pred.shape[:-3], *pred.shape[-2:]):
         raise ValueError("expected matching [...,C,H,W] videos and [...,H,W] mask")
     mask = mask.to(device=pred.device, dtype=torch.bool).unsqueeze(-3)
-    error = (pred.float() - target.float()).square().masked_fill(~mask, 0).sum()
-    count = mask.sum() * pred.shape[-3]
+    dims = tuple(range(1, pred.ndim)) if per_clip else tuple(range(pred.ndim))
+    error = (pred.float() - target.float()).square().masked_fill(~mask, 0).sum(
+        dims, dtype=torch.float64 if per_clip else None)
+    count = mask.sum(dims) * pred.shape[-3]
     return error, count
 
 
@@ -88,7 +90,7 @@ def block_region_mse(pred, target, mask):
     return torch.where(count > 0, error / count.clamp_min(1), error.new_tensor(float("nan")))
 
 
-def block_region_splits(pred, target, metadata, actions, *, return_stats=False):
+def block_region_splits(pred, target, metadata, actions, *, return_stats=False, per_clip=False):
     """All-block, speed-bin and incoming turn-step errors, over supplied frames.
 
     Intervals are [lo,hi), with 1.0 included in the last bin. Overlapping blocks
@@ -111,7 +113,7 @@ def block_region_splits(pred, target, metadata, actions, *, return_stats=False):
         actions = actions.squeeze(-1)
     turn = ((actions == 0) | (actions == 1)).to(pred.device)
     regions.extend((union & turn[..., None, None], union & ~turn[..., None, None]))
-    stats = {name: block_region_stats(pred, target, region) for name, region in zip(METRIC_NAMES, regions)}
+    stats = {name: block_region_stats(pred, target, region, per_clip=per_clip) for name, region in zip(METRIC_NAMES, regions)}
     if return_stats:
         return stats
     return {name: torch.where(n > 0, e / n.clamp_min(1), e.new_tensor(float("nan")))
@@ -127,12 +129,16 @@ class BlockRegionMetric(Metric):
         self.add_state("squared_error", default=torch.zeros(len(METRIC_NAMES), dtype=torch.float64), dist_reduce_fx="sum")
         self.add_state("pixels", default=torch.zeros(len(METRIC_NAMES), dtype=torch.float64), dist_reduce_fx="sum")
 
-    def update(self, pred, target, metadata, actions):
-        stats = block_region_splits(pred, target, metadata, actions, return_stats=True)
+    def update(self, pred=None, target=None, metadata=None, actions=None, *, stats=None):
+        if stats is None:
+            stats = block_region_splits(pred, target, metadata, actions, return_stats=True)
+        self.add_stats(stats)
+
+    def add_stats(self, stats):
         for i, name in enumerate(METRIC_NAMES):
             error, count = stats[name]
-            self.squared_error[i] += error.to(self.squared_error)
-            self.pixels[i] += count.to(self.pixels)
+            self.squared_error[i] += error.sum().to(self.squared_error)
+            self.pixels[i] += count.sum().to(self.pixels)
 
     def compute(self):
         return {name: torch.where(self.pixels[i] > 0, self.squared_error[i] / self.pixels[i].clamp_min(1),

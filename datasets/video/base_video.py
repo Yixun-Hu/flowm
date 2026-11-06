@@ -57,13 +57,16 @@ class BaseVideoDataset(torch.utils.data.Dataset, ABC):
         rank_zero_print( "\n\n" + 10*"==" + f"SPLIT={self.split}" + 10*"==")
 
         # Download dataset if not exists
-        if self._should_download():
-            self.download_dataset()
-        if not self.metadata_dir.exists():
-            self.metadata_dir.mkdir(exist_ok=True, parents=True)
-        
-        for split in self._ALL_SPLITS:
-            self.build_metadata(split)
+        if cfg.get("metadata_read_only", False):
+            if not (self.metadata_dir / f"{split}.pt").is_file():
+                raise FileNotFoundError(f"Read-only dataset requires {self.metadata_dir / (split + '.pt')}")
+        else:
+            if self._should_download():
+                self.download_dataset()
+            if not self.metadata_dir.exists():
+                self.metadata_dir.mkdir(exist_ok=True, parents=True)
+            for split in self._ALL_SPLITS:
+                self.build_metadata(split)
 
         try:
             self.metadata = self.load_metadata()
@@ -516,6 +519,8 @@ class BaseAdvancedVideoDataset(BaseVideoDataset):
             ), "Something went wrong while remapping subdataset indices"
             return idx_remap
         elif self.use_split_subdataset:
+            if self.purpose == "validation" and self.cfg.get("validation_first_clips", False):
+                return ([0] + self.cumulative_sizes[:-1])[:self.num_clips]
             # deterministically choose one clip per video for evaluation
             # raise a warning if num_validation_clips > num_videos
             rank_zero_print(f"Using {self.split} subdataset of size {self.num_clips}")

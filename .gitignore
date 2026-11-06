@@ -62,6 +62,10 @@ src/*
 scripts/*
 !scripts/kwm3d_bench.py
 !scripts/kwm3d_check_masks.py
+!scripts/kwm3d_baseline_repeat.py
+!scripts/kwm3d_pilot_stats.py
+!scripts/kwm3d_runtime.py
+!algorithms/mem_wm/backbones/kwm3d/checkpoints.py
 code
 *.sh
 *.ply
@@ -80,3 +84,11 @@ downloaded_checkpoints/*
 # kinetic 3D agent scratch directories
 experiments/flowm_bench/k3d/.scratch/
 algorithms/mem_wm/backbones/kwm3d/.scratch/
+
+# Small reproducible pilot baseline sufficient statistics (no decoded videos).
+!experiments/flowm_bench/k3d/results/
+experiments/flowm_bench/k3d/results/*
+!experiments/flowm_bench/k3d/results/pilot_baseline_repeat_140/
+!experiments/flowm_bench/k3d/results/pilot_baseline_repeat_280/
+!experiments/flowm_bench/k3d/results/pilot_baseline_repeat_140/*
+!experiments/flowm_bench/k3d/results/pilot_baseline_repeat_280/*

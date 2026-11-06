@@ -302,9 +302,9 @@ class BaseLightningExperiment(BaseExperiment):
                     # ignored_modules=[self.algo.vae.encoder, self.algo.vae.patch_embed]
                 )
             case _:
-                strategy = None
+                strategy = "auto"
         trainer = pl.Trainer(
-            accelerator="auto",
+            accelerator=self.cfg.get("accelerator", "auto"),
             logger=self.logger,
             devices=self.cfg.training.devices if not self.cfg.debug else 1,
             num_nodes=self.cfg.num_nodes,
@@ -372,7 +372,7 @@ class BaseLightningExperiment(BaseExperiment):
                 strategy = "auto"
 
         trainer = pl.Trainer(
-            accelerator="auto",
+            accelerator=self.cfg.get("accelerator", "auto"),
             logger=self.logger,
             devices=devices,
             num_nodes=self.cfg.num_nodes,
