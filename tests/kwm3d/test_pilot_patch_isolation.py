@@ -1,13 +1,13 @@
 """Reported patch motion must be invisible to the registered pilot decision."""
 import ast
-import builtins
+from contextlib import contextmanager
 import csv
-import io
 import json
 import os
 from pathlib import Path
 import subprocess
 import sys
+import sysconfig
 
 import pytest
 import torch
@@ -32,24 +32,45 @@ def test_registered_statistics_have_no_patch_dependency():
             assert not any(word in name for name in names for word in ('k3d', 'trained_lift', 'patch_motion', 'kwm3d_pilot_patch_report'))
 
 
-def record_opens(monkeypatch, opened):
-    """Record all Python file entry points, including torch's deserializer."""
-    def wrap(function):
-        def recorded(path, *args, **kwargs):
-            if isinstance(path, (str, bytes, os.PathLike)):
-                opened.append(os.fsdecode(path))
-            return function(path, *args, **kwargs)
-        return recorded
+@contextmanager
+def record_file_access():
+    """Audit hooks cannot be removed: disable this recorder after the measured call."""
+    opened = []
+    enabled = True
 
-    monkeypatch.setattr(builtins, 'open', wrap(builtins.open))
-    monkeypatch.setattr(io, 'open', wrap(io.open))
-    monkeypatch.setattr(Path, 'open', wrap(Path.open))
-    monkeypatch.setattr(torch, 'load', wrap(torch.load))
+    def record(event, args):
+        if enabled and event in ('open', 'os.listdir', 'os.scandir'):
+            path = args[0]
+            if isinstance(path, (str, bytes, os.PathLike)):
+                opened.append((event, Path(os.fsdecode(path)).absolute()))
+
+    sys.addaudithook(record)
+    try:
+        yield opened
+    finally:
+        enabled = False
+
+
+def test_file_access_recorder_catches_low_level_reads_and_switches_off(tmp_path):
+    path = tmp_path / 'decoy'
+    path.write_bytes(b'decoy')
+    with record_file_access() as opened:
+        fd = os.open(path, os.O_RDONLY)
+        os.close(fd)
+        os.listdir(tmp_path)
+        with os.scandir(tmp_path) as entries:
+            list(entries)
+    assert set(opened) == {('open', path), ('os.listdir', tmp_path), ('os.scandir', tmp_path)}
+    before = opened.copy()
+    path.read_bytes()
+    os.listdir(tmp_path)
+    assert opened == before
 
 
 @pytest.mark.parametrize('c,a,b,expected', [(1., .8, 2., 'PASS'), (1., .95, 2., 'FAIL'),
                                          (1., .8, .5, 'INCONCLUSIVE')])
-def test_statistics_never_open_diagnostic_files(monkeypatch, tmp_path, c, a, b, expected):
+@pytest.mark.parametrize('decoy_root', ['.', 'outputs/k3d_pilot'])
+def test_statistics_never_open_diagnostic_files(monkeypatch, tmp_path, c, a, b, expected, decoy_root):
     dumps = [dump(value) for value in (c, a, b)]
     results = []
     for case in ('clean', 'zero', 'extreme', 'garbage'):
@@ -61,32 +82,37 @@ def test_statistics_never_open_diagnostic_files(monkeypatch, tmp_path, c, a, b, 
             payload = b'\x00\xff\x81garbage' if case == 'garbage' else (
                 f'group,bin,pairs,usable,median,p90,within_025,boundary_fraction\n'
                 f'all,all,44990,44990,{0 if case == "zero" else 99},999,1,0\n').encode()
-            (directory / 'pilot_patch_motion.md').write_bytes(payload)
+            diagnostics = directory / decoy_root
+            diagnostics.mkdir(parents=True, exist_ok=True)
+            (diagnostics / 'pilot_patch_motion.md').write_bytes(payload)
             for arm in ('c', 'a_oracle'):
-                target = directory / 'patch_motion' / arm
+                target = diagnostics / 'patch_motion' / arm
                 target.mkdir(parents=True)
                 for k in (8, 32, 256):
                     for kind in ('summary', 'pairs'):
                         (target / f'patch_k{k}_{kind}.csv').write_bytes(payload)
-        opened = []
         with monkeypatch.context() as patch:
             patch.chdir(directory)
-            record_opens(patch, opened)
-            stats.main(['--c', 'c.pt', '--a_oracle', 'a.pt', '--baseline', 'baseline.pt',
-                        '--output', 'pilot_stats_140.md'])
-            verdict = stats.compare(*dumps)[1]
+            with record_file_access() as opened:
+                stats.main(['--c', 'c.pt', '--a_oracle', 'a.pt', '--baseline', 'baseline.pt',
+                            '--output', 'pilot_stats_140.md'])
+                verdict = stats.compare(*dumps)[1]
         assert opened, 'the recorder must observe the dump reads and statistics write'
-        assert {Path(path).name for path in opened} == {'c.pt', 'a.pt', 'baseline.pt', 'pilot_stats_140.md'}
-        assert not any('patch' in path.lower() for path in opened)
+        allowed = {directory / name for name in ('c.pt', 'a.pt', 'baseline.pt', 'pilot_stats_140.md')}
+        runtime = {Path(sysconfig.get_path(key)).resolve() for key in ('stdlib', 'purelib', 'platlib')}
+        assert allowed <= {path for event, path in opened if event == 'open'}
+        assert all(path in allowed or any(path.is_relative_to(root) for root in runtime)
+                   for _, path in opened), opened
+        # stat/exists probes are not audited, so byte equality remains essential.
         results.append(((directory / 'pilot_stats_140.md').read_bytes(), verdict))
     assert all(result == results[0] for result in results)
     assert results[0][1] == expected
 
 
-def write_summaries(directory, prefix, median=.636):
+def write_summaries(directory, prefix, median=.636, pairs=44990):
     directory.mkdir(parents=True, exist_ok=True)
     for k in report.KS:
-        rows = [dict(source='synthetic', k=k, group=group, bin=name, pairs=44990, usable=44989,
+        rows = [dict(source='synthetic', k=k, group=group, bin=name, pairs=pairs, usable=pairs-1,
                      median=median, p90=1.23456789, within_025=.121234567, boundary_fraction=.151234567)
                 for group, bins in report.GROUPS for name in bins]
         with (directory / f'{prefix}_k{k}_summary.csv').open('w', newline='') as f:
@@ -102,11 +128,11 @@ def released(tmp_path):
     return directory
 
 
-def make_run(directory, arm, median):
-    write_summaries(directory, 'patch', median)
+def make_run(directory, arm, median, pairs=44990):
+    write_summaries(directory, 'patch', median, pairs)
     info = dict(checkpoint=f'/checkpoints/{arm}/step-006000.ckpt', sha256=arm+'-sha256', arm=arm,
                 lift_definition='stage 1 tokens' if arm == 'c' else 'V-pooled observation_write',
-                clips=200, frames=140, Ks=[8,32,256], pairs=44990, pair_set_matches_stage1=True)
+                clips=200, frames=140, Ks=[8,32,256], pairs=pairs, pair_set_matches_stage1=True, status='ok')
     (directory / 'patch_run.json').write_text(json.dumps(info))
     return info
 
@@ -126,13 +152,14 @@ def test_report_released_only_and_missing_lines(released, tmp_path, capsys):
 
 
 def test_report_two_runs_and_provenance(released, tmp_path):
-    c, a = tmp_path / 'c', tmp_path / 'a_oracle'
-    infos = [make_run(c, 'c', 0.), make_run(a, 'a_oracle', 99.)]
+    c, a, pooled = tmp_path / 'c', tmp_path / 'a_oracle', tmp_path / 'released_pooled'
+    infos = [make_run(c, 'c', 0.), make_run(a, 'a_oracle', 99.), make_run(pooled, 'c_pw', .64)]
     output = tmp_path / 'report.md'
     report.main(['--released-results', str(released), '--run', f'C={c}', '--run', f'A-oracle={a}',
+                 '--run', f'frozen released weights, pooled write={pooled}',
                  '--output', str(output)])
     text = output.read_text()
-    for name in ('frozen released lift (stage 1)', 'C', 'A-oracle'):
+    for name in ('frozen released lift (stage 1)', 'C', 'A-oracle', 'frozen released weights, pooled write'):
         assert text.count(f'| {name} |') == 24
     main = text.split('Speed bins')[0]
     assert main.count('| frozen released lift (stage 1) |') == 3
@@ -140,10 +167,76 @@ def test_report_two_runs_and_provenance(released, tmp_path):
     assert main.index('| frozen released') < main.index('| C |') < main.index('| A-oracle |')
     for info in infos:
         assert info['checkpoint'] in text and info['sha256'] in text and info['lift_definition'] in text
-    assert text.count('pair_set_matches_stage1: true') == 2
+    assert text.count('pair_set_matches_stage1: true') == 3
+    assert ('The C row and the stage 1 row use the per-node write (attention over V identical copies of the zero map); '
+            'the A-oracle row uses its V-pooled single-copy write, which differs from the per-node write even at identical weights, '
+            'so compare A-oracle with the released pooled-write row and not only with the stage 1 row.') in main
+    assert 'The A-oracle write was trained only through reconstruction with oracle velocities, never through an estimator.' in main
     assert '| 44990 | 44989 | 0.000000 | 1.234568 | 0.121235 | 0.151235 |' in text
     assert '| 44990 | 44989 | 99.000000 |' in text
     assert not any(word in text for word in ('PASS', 'FAIL', 'INCONCLUSIVE'))
+
+
+def test_report_failed_runs_and_missing_are_distinct(released, tmp_path):
+    failed = tmp_path / 'failed'
+    failed.mkdir()
+    (failed / 'patch_run.json').write_text(json.dumps(dict(status='failed', error='node mismatch | x=y\nstop')))
+    no_error = tmp_path / 'no_error'
+    no_error.mkdir()
+    (no_error / 'patch_run.json').write_text(json.dumps(dict(status='ok')))
+    output = tmp_path / 'report.md'
+    report.main(['--released-results', str(released), '--failed', f'C={failed}',
+                 '--failed', f'A-oracle={tmp_path / "absent"}', '--failed', f'no-error={no_error}',
+                 '--missing', 'unstarted=checkpoint missing', '--output', str(output)])
+    text = output.read_text()
+    assert 'C: test failed — node mismatch \\| x=y stop' in text
+    assert 'A-oracle: test failed — no failure record; see the log' in text
+    assert 'no-error: test failed — no failure record; see the log' in text
+    assert 'unstarted: test not run — checkpoint missing' in text
+
+
+@pytest.mark.parametrize('first,second', [('--run', '--missing'), ('--run', '--failed'),
+                                        ('--missing', '--failed'), ('--failed', '--failed')])
+def test_report_rejects_duplicate_names(tmp_path, capsys, first, second):
+    output = tmp_path / 'report.md'
+    with pytest.raises(SystemExit) as error:
+        report.main([first, 'same=one', second, 'same=two', '--output', str(output)])
+    assert error.value.code == 2
+    assert 'names must be unique' in capsys.readouterr().err
+    assert not output.exists()
+
+
+def test_report_partial_run_requires_explicit_flag(released, tmp_path):
+    run = tmp_path / 'partial'
+    make_run(run, 'c', .6, pairs=482)
+    output = tmp_path / 'report.md'
+    argv = ['--released-results', str(released), '--run', f'C={run}', '--output', str(output)]
+    with pytest.raises(ValueError, match=r'C: K=8 pair count 482 differs from stage 1 \(44990\)'):
+        report.main(argv)
+    assert not output.exists()
+    report.main([*argv, '--allow-partial'])
+    assert output.read_text().splitlines()[:2] == [report.NOTICE,
+        'PARTIAL RUN: pair counts differ from stage 1; not comparable']
+
+
+@pytest.mark.parametrize('k', report.KS)
+def test_report_compares_against_released_count_at_each_k(released, tmp_path, k):
+    run = tmp_path / 'run'
+    make_run(run, 'c', .6)
+    path = released / f'followup_patch_tokens_k{k}_summary.csv'
+    path.write_text(path.read_text().replace('44990', '44991'))
+    with pytest.raises(ValueError, match=rf'K={k} pair count 44990 differs from stage 1 \(44991\)'):
+        report.render(released, [('C', run)], [])
+
+
+def test_allow_partial_does_not_relax_run_integrity(released, tmp_path):
+    run = tmp_path / 'run'
+    info = make_run(run, 'c', .6)
+    assert 'PARTIAL RUN' not in report.render(released, [('C', run)], [], allow_partial=True)
+    info['pairs'] = 482
+    (run / 'patch_run.json').write_text(json.dumps(info))
+    with pytest.raises(ValueError, match='summary pair count disagrees with patch_run.json'):
+        report.render(released, [('C', run)], [], allow_partial=True)
 
 
 @pytest.mark.parametrize('value,expected', [(0, '0.000000'), (.123456789, '0.123457'),

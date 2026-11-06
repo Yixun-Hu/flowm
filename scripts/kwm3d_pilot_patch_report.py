@@ -52,9 +52,11 @@ def read_summaries(directory, prefix):
     return rows
 
 
-def render(released_results, runs, missing):
-    sources = [("frozen released lift (stage 1)", read_summaries(released_results, "followup_patch_tokens"))]
+def render(released_results, runs, missing, failed=(), *, allow_partial=False):
+    released = read_summaries(released_results, "followup_patch_tokens")
+    sources = [("frozen released lift (stage 1)", released)]
     provenance = []
+    partial = False
     for name, directory in runs:
         directory = Path(directory)
         info = json.loads((directory / "patch_run.json").read_text())
@@ -65,9 +67,25 @@ def render(released_results, runs, missing):
             raise ValueError(f"{name}: expected Ks {KS}")
         if any(int(rows[k, "all", "all"]["pairs"]) != info["pairs"] for k in KS):
             raise ValueError(f"{name}: summary pair count disagrees with patch_run.json")
+        for k in KS:
+            pairs = int(rows[k, "all", "all"]["pairs"])
+            expected = int(released[k, "all", "all"]["pairs"])
+            if pairs != expected:
+                if not allow_partial:
+                    raise ValueError(f"{name}: K={k} pair count {pairs} differs from stage 1 ({expected}); "
+                                     "use --allow-partial only for rehearsals")
+                partial = True
         sources.append((name, rows))
         provenance.append((name, info))
-    lines = [NOTICE, "", "Fractions are in [0, 1]; errors are in intrinsic cells. Unusable pairs count as infinite error."]
+    lines = [NOTICE]
+    if partial:
+        lines.append("PARTIAL RUN: pair counts differ from stage 1; not comparable")
+    lines += ["",
+              "The C row and the stage 1 row use the per-node write (attention over V identical copies of the zero map); "
+              "the A-oracle row uses its V-pooled single-copy write, which differs from the per-node write even at identical weights, "
+              "so compare A-oracle with the released pooled-write row and not only with the stage 1 row.",
+              "The A-oracle write was trained only through reconstruction with oracle velocities, never through an estimator.",
+              "", "Fractions are in [0, 1]; errors are in intrinsic cells. Unusable pairs count as infinite error."]
     for group, bins in GROUPS:
         title = {"all": "All pairs", "speed": "Speed bins", "distance": "Distance bins"}[group]
         lines += ["", title, ""]
@@ -89,6 +107,11 @@ def render(released_results, runs, missing):
                   f"Lift: {cell(info['lift_definition'])}."]
     for name, reason in missing:
         lines += ["", f"{cell(name)}: test not run — {cell(reason)}"]
+    for name, directory in failed:
+        path = Path(directory) / "patch_run.json"
+        info = json.loads(path.read_text()) if path.exists() else {}
+        reason = info.get("error") or "no failure record; see the log"
+        lines += ["", f"{cell(name)}: test failed — {cell(reason)}"]
     return "\n".join(lines) + "\n"
 
 
@@ -97,15 +120,17 @@ def main(argv=None):
     p.add_argument("--released-results", type=Path, default=Path("experiments/flowm_bench/k3d/results"))
     p.add_argument("--run", type=named, action="append", default=[], metavar="NAME=DIR")
     p.add_argument("--missing", type=named, action="append", default=[], metavar="NAME=TEXT")
+    p.add_argument("--failed", type=named, action="append", default=[], metavar="NAME=DIR")
+    p.add_argument("--allow-partial", action="store_true", help="allow mismatched pair counts for rehearsals only")
     p.add_argument("--output", type=Path, required=True)
     args = p.parse_args(argv)
     # Check both the requested name and symlink target before reading or writing.
     if any(path.name.startswith("pilot_stats") for path in (args.output, args.output.resolve())):
         p.error("--output must not name a pilot_stats file")
-    names = [name for name, _ in args.run + args.missing]
+    names = [name for name, _ in args.run + args.missing + args.failed]
     if len(set(names)) != len(names):
-        p.error("--run and --missing names must be unique")
-    result = render(args.released_results, args.run, args.missing)
+        p.error("--run, --missing and --failed names must be unique")
+    result = render(args.released_results, args.run, args.missing, args.failed, allow_partial=args.allow_partial)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(result)
 

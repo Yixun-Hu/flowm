@@ -114,6 +114,13 @@ def run(checkpoint, arm, n=200, stage="all", batch_size=None, output_dir=None):
     source = "observation-only tokens" if arm == "c" else "trained pooled write"
     lift_definition = ("lift.observation_lift(model, frames)['tokens']: per-node write on a zero map, node 0"
                        if arm == "c" else "model.observation_write(frames): V-pooled write on a zero map")
+
+    def record_failure(error, **details):
+        failure = dict(checkpoint=str(Path(checkpoint).resolve()), sha256=digest, arm=arm,
+                       lift_definition=lift_definition, stage=stage, status="failed",
+                       error=str(error), **details)
+        (output / f"{stage}_run.json").write_text(json.dumps(failure, indent=2)+"\n")
+
     lift_seconds = patch_seconds = gate_seconds = 0.
     lifted_clips = 0
     for i, path in enumerate(paths):
@@ -124,10 +131,7 @@ def run(checkpoint, arm, n=200, stage="all", batch_size=None, output_dir=None):
             try:
                 tokens = torch.cat([lift_tokens(model, x, arm) for x in item["videos"].split(batch_size)])
             except AssertionError as error:
-                failure = dict(checkpoint=str(Path(checkpoint).resolve()), sha256=digest, arm=arm,
-                               lift_definition=lift_definition, status="failed", clip=clip_id(path),
-                               error=f"Observation lift assertion failed: {error}")
-                (output / f"{stage}_run.json").write_text(json.dumps(failure, indent=2)+"\n")
+                record_failure(f"Observation lift assertion failed: {error}", clip=clip_id(path))
                 raise
             torch.save(dict(tokens=tokens.half(), actions=item["conds"].long(), checkpoint_sha256=digest,
                             lift_definition=lift_definition), dest.with_suffix(".tmp"))
@@ -176,8 +180,12 @@ def run(checkpoint, arm, n=200, stage="all", batch_size=None, output_dir=None):
     pairs = None
     if stage in ("all", "patch"):
         # Validate every K before publishing any CSVs.
-        for rows in patch_rows.values():
-            pairs = check_pair_set(rows, paths)
+        try:
+            for rows in patch_rows.values():
+                pairs = check_pair_set(rows, paths)
+        except ValueError as error:
+            record_failure(error)
+            raise
         for k, rows in patch_rows.items():
             write_rows(output / f"patch_k{k}_pairs.csv", rows)
             write_rows(output / f"patch_k{k}_summary.csv", summarize(rows, source, k))
@@ -192,8 +200,10 @@ def run(checkpoint, arm, n=200, stage="all", batch_size=None, output_dir=None):
                 speed_bin=name, **values, verdict="PASS" if values["median"] <= .1 and values["miss_rate"] <= .3 else "FAIL"))
         write_rows(output / "gate_summary.csv", rows)
     info = dict(checkpoint=str(Path(checkpoint).resolve()), sha256=digest, arm=arm, clips=len(paths),
-                frames=140, k=8, sigma=1, residual_mode="mask", truth="intrinsic_incoming",
-                seconds=time.perf_counter()-started, cache=str(cache), output=str(output), stage=stage)
+                frames=140, status="ok", seconds=time.perf_counter()-started,
+                cache=str(cache), output=str(output), stage=stage)
+    if stage in ("all", "gate"):
+        info.update(k=8, sigma=1, residual_mode="mask", truth="intrinsic_incoming")
     if stage != "gate":
         info.update(lift_definition=lift_definition, batch_size=batch_size, lifted_clips=lifted_clips,
                     lift_seconds=lift_seconds, patch_seconds=patch_seconds, gate_seconds=gate_seconds)

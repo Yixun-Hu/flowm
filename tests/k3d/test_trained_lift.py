@@ -58,15 +58,53 @@ def test_c_accepts_observation_lift_and_patch(monkeypatch, tmp_path, stage, disp
     assert calls == [('unused.ckpt', 'c', 200, stage, 32, tmp_path)]
 
 
-def test_c_lift_equals_stage1_observation_tokens():
+def test_c_lift_calls_stage1_observation_lift(monkeypatch):
     # Stage-1 observation_lift asserts the released 256-channel gate structure.
     model = KineticBlockworldModel(arm='c', embed_dim=256, map_proc_encoder_depth=1, dec_depth=1,
                                   num_heads=8, input_shape=(3,32,32), img_patch_size=8).eval()
     frames = torch.rand(2,3,32,32)
+    calls = []
+    observation_lift = trained_lift.observation_lift
+
+    def record(model_arg, frames_arg):
+        assert model_arg is model and frames_arg is frames
+        result = observation_lift(model_arg, frames_arg)
+        calls.append(result)
+        return result
+
+    monkeypatch.setattr(trained_lift, 'observation_lift', record)
     with torch.inference_mode():
-        expected = trained_lift.observation_lift(model, frames)['tokens']
         actual = trained_lift.lift_tokens(model, frames, 'c')
-    assert torch.equal(actual, expected)
+    assert len(calls) == 1 and actual is calls[0]['tokens']
+
+
+def test_patch_pairs_match_stage1_released_cache():
+    from k3d import lift
+
+    references = {k: trained_lift.RESULTS / f'followup_patch_tokens_k{k}_pairs.csv'
+                  for k in trained_lift.PATCH_KS}
+    if not (lift.SCRATCH / 'lifts').is_dir() or not all(p.is_file() for p in references.values()):
+        pytest.skip('local stage-1 lift cache or pairs CSVs are absent')
+    paths = trained_lift.clips('k3d_v_validation', 200)
+    paths = [paths[i] for i in (0, 57, 199) if lift.cache_path(paths[i]).is_file()]
+    if not paths:
+        pytest.skip('local stage-1 lift cache has none of the selected clips')
+    selected = {trained_lift.clip_id(path) for path in paths}
+    expected = {}
+    for k, reference in references.items():
+        with reference.open(newline='') as f:
+            expected[k] = [r for r in csv.DictReader(f) if r['clip'] in selected]
+    actual = {k: [] for k in references}
+    for path in paths:
+        cached = lift.read_cache(path)
+        labels = trained_lift.truth(path)
+        for k in references:
+            actual[k].extend(trained_lift.patch_pairs(path, cached['tokens'], cached['actions'],
+                                                     labels, k, 'observation-only tokens'))
+    for k in references:
+        assert expected[k], f'no stage-1 reference pairs for K={k}'
+        # All 15 columns, including pair identities, velocities and flags; no recomputed reference.
+        assert [{key: str(value) for key, value in row.items()} for row in actual[k]] == expected[k]
 
 
 @pytest.mark.parametrize('checkpoint_arg', [['--checkpoint', 'unused.ckpt'], ['--checkpoint=unused.ckpt']])
@@ -142,6 +180,8 @@ def test_multi_k_patch_writes_stage1_columns_and_summaries(synthetic_patch):
     assert info['Ks'] == [8, 32, 256] and info['pairs'] == 1 and info['pair_set_matches_stage1'] is True
     assert info['clips'] == 1 and info['frames'] == 140 and info['arm'] == 'c'
     assert info['sha256'] == 'synthetic-sha'
+    assert info['status'] == 'ok'
+    assert not {'k', 'sigma', 'residual_mode', 'truth'} & info.keys()
     assert info['checkpoint'] == str(Path('synthetic.ckpt').resolve())
     assert 'observation_lift' in info['lift_definition']
     for k in (8, 32, 256):
@@ -168,11 +208,14 @@ def test_multi_k_patch_writes_stage1_columns_and_summaries(synthetic_patch):
 def test_patch_stage_refuses_different_pair_set(synthetic_patch):
     fixture = synthetic_patch
     trained_lift.write_rows(fixture['reference'], [dict(clip='0/0000', frame=2, block=0)])
-    with pytest.raises(ValueError, match='pair set differs from stage 1'):
+    with pytest.raises(ValueError, match='pair set differs from stage 1') as error:
         trained_lift.run('synthetic.ckpt', 'c', n=1, stage='patch', batch_size=140,
                          output_dir=fixture['output'])
     assert not list(fixture['output'].glob('*.csv'))
-    assert not (fixture['output'] / 'patch_run.json').exists()
+    info = json.loads((fixture['output'] / 'patch_run.json').read_text())
+    assert info['status'] == 'failed' and info['error'] == str(error.value)
+    assert info['arm'] == 'c' and info['sha256'] == 'synthetic-sha'
+    assert info['stage'] == 'patch' and 'observation_lift' in info['lift_definition']
 
 
 @pytest.mark.parametrize('change', ['missing', 'extra', 'duplicate', 'unknown_clip'])

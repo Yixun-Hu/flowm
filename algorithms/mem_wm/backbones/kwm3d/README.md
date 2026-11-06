@@ -526,6 +526,10 @@ never read by the pilot criterion; it does not modify the statistics files.
 ```bash
 export CUDA_VISIBLE_DEVICES="" OMP_NUM_THREADS=8 MKL_NUM_THREADS=8 OPENBLAS_NUM_THREADS=8 WANDB_MODE=offline
 bash experiments/flowm_bench/k3d/run_cpu.sh trained_lift \
+  --checkpoint downloaded_checkpoints/hf_models/blockworld-models/blockworld/dynamic/flowm/v2_dynamic.ckpt \
+  --arm c_pw --stage patch --clips 200 \
+  --output-dir experiments/flowm_bench/k3d/results/patch_released_pooled_write
+bash experiments/flowm_bench/k3d/run_cpu.sh trained_lift \
   --checkpoint outputs/k3d_pilot/c/checkpoints/step-006000.ckpt \
   --arm c --stage patch --clips 200 --output-dir outputs/k3d_pilot/patch_motion/c
 bash experiments/flowm_bench/k3d/run_cpu.sh trained_lift \
@@ -533,6 +537,7 @@ bash experiments/flowm_bench/k3d/run_cpu.sh trained_lift \
   --arm a_oracle --stage patch --clips 200 --output-dir outputs/k3d_pilot/patch_motion/a_oracle
 /home/yixunhu/miniconda3/envs/flowm/bin/python scripts/kwm3d_pilot_patch_report.py \
   --released-results experiments/flowm_bench/k3d/results \
+  --run 'frozen released weights, pooled write=experiments/flowm_bench/k3d/results/patch_released_pooled_write' \
   --run C=outputs/k3d_pilot/patch_motion/c \
   --run A-oracle=outputs/k3d_pilot/patch_motion/a_oracle \
   --output outputs/k3d_pilot/pilot_patch_motion.md
@@ -543,6 +548,20 @@ with `--missing 'C=final step-006000 checkpoint missing'` (or `A-oracle=...`).
 The report also works when both entries are missing. C uses stage 1's default
 lift batch size of 32; pooled arms retain 8. Both run with eight CPU threads.
 These are post-chain commands; the running chain script is unchanged.
+
+If a test ran and failed, replace its `--run` entry with
+`--failed 'C=outputs/k3d_pilot/patch_motion/c'` (or
+`--failed 'A-oracle=outputs/k3d_pilot/patch_motion/a_oracle'`). This prints the
+error from `patch_run.json`, or `no failure record; see the log` if unavailable.
+Names must be unique across `--run`, `--missing` and `--failed`.
+Every run must match stage 1's pair count at each K; `--allow-partial` is only
+for rehearsals and labels differing counts as not comparable.
+
+The released pooled-write reference is included through the ordinary `--run`
+option. The report header automatically explains the per-node versus pooled-write
+difference and that A-oracle's write was trained only through reconstruction
+with oracle velocities, never through an estimator. Compare A-oracle with this
+pooled-write reference as well as the stage 1 row.
 
 ### Trained-lift gate, after a pilot PASS (CPU)
 

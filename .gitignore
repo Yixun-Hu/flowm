@@ -97,3 +97,10 @@ experiments/flowm_bench/k3d/results/*
 !experiments/flowm_bench/k3d/results/pilot_reference_last_flat_*/
 !experiments/flowm_bench/k3d/results/pilot_reference_gray_*/
 !experiments/flowm_bench/k3d/results/pilot_reference_*/*
+
+# Released pooled-write reference: summaries and provenance only.
+!experiments/flowm_bench/k3d/results/patch_released_pooled_write/
+!experiments/flowm_bench/k3d/results/patch_released_pooled_write/patch_k8_summary.csv
+!experiments/flowm_bench/k3d/results/patch_released_pooled_write/patch_k32_summary.csv
+!experiments/flowm_bench/k3d/results/patch_released_pooled_write/patch_k256_summary.csv
+!experiments/flowm_bench/k3d/results/patch_released_pooled_write/patch_run.json

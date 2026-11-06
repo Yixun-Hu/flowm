@@ -1,0 +1,25 @@
+{
+  "checkpoint": "/media/diskstation/yixunhu/flowm/downloaded_checkpoints/hf_models/blockworld-models/blockworld/dynamic/flowm/v2_dynamic.ckpt",
+  "sha256": "e523c75b3bb337d067a2132842e808c766d55f7b5c8420b85217f8fda249cfe7",
+  "arm": "c_pw",
+  "clips": 200,
+  "frames": 140,
+  "status": "ok",
+  "seconds": 263.20555667951703,
+  "cache": "/home/yixunhu/codespace/flowm/experiments/flowm_bench/k3d/.scratch/trained_lifts/e523c75b3bb337d067a2132842e808c766d55f7b5c8420b85217f8fda249cfe7/c_pw",
+  "output": "experiments/flowm_bench/k3d/results/patch_released_pooled_write",
+  "stage": "patch",
+  "lift_definition": "model.observation_write(frames): V-pooled write on a zero map",
+  "batch_size": 8,
+  "lifted_clips": 200,
+  "lift_seconds": 200.03495399281383,
+  "patch_seconds": 53.563360035419464,
+  "gate_seconds": 0.0,
+  "Ks": [
+    8,
+    32,
+    256
+  ],
+  "pairs": 44990,
+  "pair_set_matches_stage1": true
+}
