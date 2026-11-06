@@ -513,16 +513,47 @@ clip CI does not measure training-seed variance. Report at this boundary and
 stop before stage 3; an estimator training run still requires the trained-lift
 gate to pass and the user's approval.
 
-### Trained-lift gate, after the pilot (CPU)
+### Patch-motion test on the trained lifts (reported only)
+
+After the chain ends, run this diagnostic for **every** pilot outcome on both
+final checkpoints. C uses `lift.observation_lift(model, frames)["tokens"]`
+(per-node zero-map write, node 0); A-oracle uses `observation_write` (V-pooled
+zero-map write). One fp16 token cache per clip supplies K=8, K=32 and raw 256
+channels. The first 200 validation clips, frames 0–139, must reproduce the
+stage-1 pair set (44,990 pairs). The separate report has no threshold and is
+never read by the pilot criterion; it does not modify the statistics files.
+
+```bash
+export CUDA_VISIBLE_DEVICES="" OMP_NUM_THREADS=8 MKL_NUM_THREADS=8 OPENBLAS_NUM_THREADS=8 WANDB_MODE=offline
+bash experiments/flowm_bench/k3d/run_cpu.sh trained_lift \
+  --checkpoint outputs/k3d_pilot/c/checkpoints/step-006000.ckpt \
+  --arm c --stage patch --clips 200 --output-dir outputs/k3d_pilot/patch_motion/c
+bash experiments/flowm_bench/k3d/run_cpu.sh trained_lift \
+  --checkpoint outputs/k3d_pilot/a_oracle/checkpoints/step-006000.ckpt \
+  --arm a_oracle --stage patch --clips 200 --output-dir outputs/k3d_pilot/patch_motion/a_oracle
+/home/yixunhu/miniconda3/envs/flowm/bin/python scripts/kwm3d_pilot_patch_report.py \
+  --released-results experiments/flowm_bench/k3d/results \
+  --run C=outputs/k3d_pilot/patch_motion/c \
+  --run A-oracle=outputs/k3d_pilot/patch_motion/a_oracle \
+  --output outputs/k3d_pilot/pilot_patch_motion.md
+```
+
+If a final checkpoint is missing, skip its test and replace its `--run` entry
+with `--missing 'C=final step-006000 checkpoint missing'` (or `A-oracle=...`).
+The report also works when both entries are missing. C uses stage 1's default
+lift batch size of 32; pooled arms retain 8. Both run with eight CPU threads.
+These are post-chain commands; the running chain script is unchanged.
+
+### Trained-lift gate, after a pilot PASS (CPU)
 
 ```bash
 bash experiments/flowm_bench/k3d/run_cpu.sh trained_lift \
   --checkpoint outputs/k3d_pilot/a_oracle/checkpoints/step-006000.ckpt \
-  --arm a_oracle --clips 200
+  --arm a_oracle --stage gate --clips 200
 ```
 
-This runs the pooled observation-only lift, direct 3x3 patch-motion diagnostic,
-and estimator gate with **mask residuals, K=8, sigma=1,
+This runs the pooled observation-only lift and estimator gate with
+**mask residuals, K=8, sigma=1,
 intrinsic_incoming truth**, on 140 observed frames per clip. The backbone's
 `observation_write` is shared with arm A's `observation_imprint`; no lift is
 reimplemented in the runner. Fixed projection and fp16 cache conventions match
@@ -533,8 +564,9 @@ Existing released-weight reports/CSVs are untouched. The existing `lift`,
 `patch_motion`, and `estimator_gate` entrypoints also accept `--checkpoint`,
 `--arm`, and `--clips` to run just the corresponding stage. Without these
 arguments their released-weight paths retain their behavior.
-`--arm c` is rejected because C trains per-node writes and has no trained pooled
-observation write. Pooled arms `a_oracle`, `a`, `b`, and `c_pw` are supported.
+`--arm c` is supported for `--stage lift` and `--stage patch`, and rejected for
+`--stage gate` and `--stage all` because C has no trained pooled observation
+write for the estimator. Pooled arms `a_oracle`, `a`, `b`, and `c_pw` are supported.
 Dispatch accepts `--split k3d_v_validation`; other splits and unsupported stage-1
 options (such as `--ks` or `--sigmas`) fail with an explanation of the fixed
 trained-lift settings, before checkpoint loading.

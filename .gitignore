@@ -64,6 +64,7 @@ scripts/*
 !scripts/kwm3d_check_masks.py
 !scripts/kwm3d_baseline_repeat.py
 !scripts/kwm3d_pilot_stats.py
+!scripts/kwm3d_pilot_patch_report.py
 !scripts/kwm3d_runtime.py
 !algorithms/mem_wm/backbones/kwm3d/checkpoints.py
 code
