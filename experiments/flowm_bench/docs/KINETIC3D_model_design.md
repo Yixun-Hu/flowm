@@ -206,3 +206,56 @@ Cheaper plan, three stages, each with a kill criterion:
 Total with the cheap plan: about 1–2 GPU-weeks before any from-scratch training, and 3–7 further GPU-weeks for the
 confirmation, versus 2–4.5 GPU-months for the v2 plan. If a second GPU (cloud or lab) can be found for the
 confirmation stage, the wall-clock halves; otherwise the confirmation starts only after the C4 chain finishes.
+
+## Addendum 2 (2026-11-05): stage 1 verdict and pre-registration of the stage 2 pilot
+
+**Stage 1 verdict: the estimator on the frozen released lift fails.** Full numbers in `K3D_stage1_results.md`.
+On the released FloWM-3D weights the sub-cell probe passes weakly (R² 0.29 / 0.40), the background null fails
+(4–20 % alarms; the alarms are cone-stationary image content read as motion at +1 cell/step), and the estimator
+gate fails in both residual modes and with the model's own memory as imprint (matched median 0.36–0.71 cells/step,
+misses 90–99 %). The decisive diagnostic: a block's own 3 × 3 lift patch does not translate with the block
+(median error 0.64 cells, 12 % within 0.25, also on the raw 256-d tokens). The verdict concerns the *frozen
+released* lift only; it says nothing about a lift trained jointly with continuous transport.
+
+**User decision 2026-11-05 ("Pilot after C4 runs"):** run the stage 2 pilot despite the stage 1 fail, starting
+automatically only after the C4 chain has finished (`C4 CHAIN DONE`), gated on free GPU memory. No 3D GPU work
+before that, including the micro-benchmark. Arm A stays contingent: even if A-oracle beats C, the estimator gate is
+re-run on the *trained* lift (CPU) before any arm A run. Report at the pilot boundary, then stop before stage 3.
+
+### Pilot protocol (fixed before any GPU run)
+
+| Item | Setting |
+|---|---|
+| Arms | C (FloWM-3D unchanged, `arm: c`) and A-oracle (`arm: a_oracle`, `oracle_velocity: incoming_object`, V-pooled write, C4-symmetric map conv), one seed each (seed 0), both from scratch |
+| Data | `k3d_v_training` (10,000 clips), 90-frame training clips = 50 context + 40 predicted |
+| Budget | 1/50 of the released budget: 6,000 optimizer steps at batch 8 (48,000 clip samples; released = 150k × 16), identical for both arms |
+| Optimisation | as released: AdamW, lr 1e-4, betas (0.9, 0.99), weight decay 1e-3, gradient clip 1.0, teacher forcing 0.125, fp32, per-step activation checkpointing on for both arms |
+| Order | micro-benchmark (≤ 50 steps per arm at the pilot batch and clip length: s/step, peak GPU memory) → C → A-oracle → evaluations |
+| Memory fallback | if batch 8 does not fit in the free memory of GPU 1 for either arm, both arms use batch 4 with gradient accumulation 2 (same samples per optimizer step, 6,000 optimizer steps) |
+| Budget cap | if the micro-benchmark projects more than 4 GPU-days for the two trainings together, stop and report before training |
+| Checkpoint | the final checkpoint (step 6,000) of each arm; no checkpoint selection |
+| Evaluation | `k3d_v_validation`, the first 1,000 clips, 70 context + 70 predicted (primary) and 70 + 210 (secondary); A-oracle receives the true block velocities in the prediction phase, as designed; the test split is not touched |
+
+### Kill criterion (pre-registered)
+
+- **Metric:** block-region MSE (`block_mse`): squared RGB error in [0, 1] over the pixels inside the analytic block
+  silhouettes (union over the valid blocks of the frame, no occlusion handling), over the predicted frames only.
+  Pooled value = pixel-weighted over all clips; per-clip value = pixel-weighted within the clip.
+- **Horizon and split:** 70 context + 70 predicted frames, `k3d_v_validation`, 1,000 clips.
+- **Margin:** PASS requires both
+  1. pooled `block_mse`(A-oracle) ≤ 0.90 × pooled `block_mse`(C), i.e. at least a 10 % relative reduction, and
+  2. the mean per-clip paired difference (A-oracle − C) has a 95 % bootstrap confidence interval (10,000
+     resamples of the 1,000 clips, fixed seed) entirely below zero.
+- **FAIL** (either condition not met): the oracle ceiling does not beat integer transport on this lift, so the
+  estimator arm is pointless; stop the 3D kinetic line and report.
+- **INCONCLUSIVE** (reported as such, not as a pass): neither arm beats the repeat-last-context-frame predictor on
+  pooled `block_mse` at 70 + 70, meaning the 1/50 budget is too small to tell.
+- **Reported, not part of the criterion:** the same at 70 + 210; full-frame MSE / PSNR / SSIM at both horizons;
+  speed-bin and turn / non-turn splits; training curves; s/step, wall-clock and peak memory of both arms; a flag if
+  the two horizons disagree in sign.
+- **Caveat stated in advance:** one seed per arm. The 10 % margin and the per-clip interval guard against
+  evaluation noise, not against seed-to-seed training variance; the pilot is a kill test, not a claim.
+
+After the pilot: report with the numbers and stop for the user's decision before stage 3. If the pilot passes,
+the stage 1 estimator gate and the direct patch-motion test are re-run on the trained A-oracle lift (CPU) and
+reported with it; arm A is not trained unless that gate passes and the user approves.
