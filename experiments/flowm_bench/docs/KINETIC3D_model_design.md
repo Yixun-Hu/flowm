@@ -290,3 +290,19 @@ separate decision the user has not made).
   `chain_pilot.sh` is not edited and the C4 chain is not touched.
 - **Unchanged:** the estimator gate stays A-oracle only and is run on the trained lift only after a PASS (the
   follow-up unit runs it in that case); arm A is not trained unless that gate passes and the user approves.
+
+**Implementation notes after review (2026-11-06, `REVIEW_k3d_patch_followup_opus.md`; reported-only, criterion
+unchanged).**
+- *Validation of comparability:* the trained-lift path, run on the released weights as arm C, reproduces the
+  stage 1 pair and summary files byte for byte at K = 8, 32 and 256 (44,990 pairs).
+- *Extra reference row:* C and stage 1 use the per-node write; A-oracle uses its V-pooled write, which differs
+  from the per-node write even at identical weights. The report therefore also carries a row for the frozen
+  released weights read through the pooled write (arm `c_pw` loading, same clips and settings;
+  `k3d/results/patch_released_pooled_write/`): median 0.639 / 0.646 / 0.640 cells and 12.3 / 12.0 / 11.8 % within
+  0.25 at K = 8 / 32 / 256, against 0.638 / 0.642 / 0.636 and 12.4 / 12.2 / 12.1 % for the per-node write. Compare
+  A-oracle with this row. The A-oracle write is trained through reconstruction with oracle velocities only, never
+  through an estimator.
+- *Follow-up unit:* `k3d/pilot/followup_patch.sh`, launched from a frozen copy. It refuses to arm unless the
+  chain unit is active and has no terminal marker; it runs the patch test only if both final checkpoints exist;
+  it runs the estimator gate on the trained A-oracle lift only after `PILOT DONE` with a PASS at 70 + 70; it
+  checks that the statistics files are byte-identical before and after.
