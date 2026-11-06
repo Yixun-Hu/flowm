@@ -259,3 +259,34 @@ re-run on the *trained* lift (CPU) before any arm A run. Report at the pilot bou
 After the pilot: report with the numbers and stop for the user's decision before stage 3. If the pilot passes,
 the stage 1 estimator gate and the direct patch-motion test are re-run on the trained A-oracle lift (CPU) and
 reported with it; arm A is not trained unless that gate passes and the user approves.
+
+### Amendment (2026-11-06): patch-motion test on the trained lift, reported for every outcome
+
+**User decision 2026-11-06 ("Yes, add it").** Recorded before the pilot starts (the chain is armed and still
+waiting for `C4 CHAIN DONE`; no 3D GPU work has run). This amendment adds a reported-only diagnostic. **The kill
+criterion above is unchanged**, including the INCONCLUSIVE clause as registered (its proposed amendment is a
+separate decision the user has not made).
+
+- **What:** the stage 1 direct patch-motion test (`K3D_stage1_results.md`, item 3) is run on the lifts of the
+  final pilot checkpoints for **every** pilot outcome (PASS, FAIL or INCONCLUSIVE), not only after a pass.
+- **Checkpoints:** the final (step 6,000) A-oracle checkpoint, and the final C checkpoint. CPU only.
+- **Lift per arm:** C uses the stage 1 observation-only write on a zero map (the same code path as for the
+  released weights, `tokens`); A-oracle uses its observation-only V-pooled write on a zero map
+  (`observation_write`), the write its estimator would read.
+- **Clips and settings, identical to stage 1:** the first 200 clips of `k3d_v_validation`, frames 0–139, all
+  jointly cone-visible block / non-turn pairs (the stage 1 pair list, 44,990 pairs; the run fails if its pair set
+  differs), 3 × 3 patch at the rounded previous block cell, half-cell search in ±1.5 intrinsic cells around the
+  ego-transported centre, Fourier interpolation on the zero-filled 33 × 33 torus, parabolic refinement, at least
+  4.5 of 9 valid cells, unusable pairs counted as infinite error. Reported at K = 8, K = 32 (fixed projections)
+  and raw 256 channels, with the stage 1 speed and distance bins.
+- **Reference (frozen released lift, stage 1):** median error 0.61–0.64 cells and 12.1–13.7 % within 0.25 cells
+  across the five configurations; raw 256 channels: median 0.636, 12.1 % within 0.25.
+- **Reported only:** no threshold is attached. The verdict logic (`scripts/kwm3d_pilot_stats.py`) does not read
+  the patch-motion results, and a test enforces this. The results go to a separate file,
+  `outputs/k3d_pilot/pilot_patch_motion.md`; the statistics files are not modified.
+- **Missing checkpoints:** if the chain stops early and a final checkpoint is missing, the test is not run and
+  the report says which checkpoint is missing.
+- **Implementation:** a separate follow-up unit that starts when the pilot chain has ended. The running
+  `chain_pilot.sh` is not edited and the C4 chain is not touched.
+- **Unchanged:** the estimator gate stays A-oracle only and is run on the trained lift only after a PASS (the
+  follow-up unit runs it in that case); arm A is not trained unless that gate passes and the user approves.
