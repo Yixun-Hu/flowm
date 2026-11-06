@@ -39,6 +39,8 @@ def pooled_tokens(model, frames):
 
 @torch.inference_mode()
 def run(checkpoint, arm, n=200, stage="all", batch_size=8):
+    if arm == "c":
+        raise ValueError("Arm C uses per-node writes and has no trained pooled observation write; use a_oracle, a, b or c_pw")
     from .patch_motion import single_patch_search, summarize
     digest = checkpoint_hash(checkpoint)
     cache = SCRATCH / "trained_lifts" / digest / arm
@@ -119,23 +121,39 @@ def run(checkpoint, arm, n=200, stage="all", batch_size=8):
     return output
 
 
-def main():
-    p = argparse.ArgumentParser(description=__doc__)
+def pooled_arm(value):
+    if value == "c":
+        raise argparse.ArgumentTypeError("Arm C uses per-node writes and has no trained pooled observation write; use a_oracle, a, b or c_pw")
+    return value
+
+
+def main(argv=None, *, stage=None):
+    p = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     p.add_argument("--checkpoint", required=True)
-    p.add_argument("--arm", required=True, choices=["c", "c_pw", "a_oracle", "a", "b"])
+    p.add_argument("--arm", required=True, type=pooled_arm, choices=["c_pw", "a_oracle", "a", "b"])
     p.add_argument("--clips", type=int, default=200)
     p.add_argument("--batch-size", type=int, default=8)
     p.add_argument("--stage", choices=["all", "lift", "patch", "gate"], default="all")
-    args = p.parse_args()
-    run(args.checkpoint, args.arm, args.clips, args.stage, args.batch_size)
+    p.add_argument("--split", default="k3d_v_validation",
+                   help="trained-lift checks use k3d_v_validation only")
+    args, unknown = p.parse_known_args(argv)
+    if unknown:
+        p.error("Stage-1 options are not supported with --checkpoint: " + " ".join(unknown) +
+                ". Trained-lift checks fix pooled observation tokens, mask residuals, K=8, sigma=1 and intrinsic_incoming truth; "
+                "use --clips/--batch-size to size the CPU run.")
+    if args.split != "k3d_v_validation":
+        p.error("--checkpoint trained-lift checks require --split k3d_v_validation; other stage-1 splits are unsupported")
+    if stage is not None and args.stage not in ("all", stage):
+        p.error(f"This entry point dispatches trained-lift --stage {stage}")
+    run(args.checkpoint, args.arm, args.clips, stage or args.stage, args.batch_size)
 
 
 def dispatch_checkpoint(stage):
     """Add the trained path to the existing stage-1 CLIs without changing defaults."""
-    if "--checkpoint" not in sys.argv:
+    argv = sys.argv[1:]
+    if not any(arg == "--checkpoint" or arg.startswith("--checkpoint=") for arg in argv):
         return False
-    sys.argv.extend(["--stage", stage])
-    main()
+    main(argv, stage=stage)
     return True
 
 

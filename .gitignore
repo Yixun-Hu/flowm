@@ -92,3 +92,7 @@ experiments/flowm_bench/k3d/results/*
 !experiments/flowm_bench/k3d/results/pilot_baseline_repeat_280/
 !experiments/flowm_bench/k3d/results/pilot_baseline_repeat_140/*
 !experiments/flowm_bench/k3d/results/pilot_baseline_repeat_280/*
+!experiments/flowm_bench/k3d/results/pilot_reference_context_mean_*/
+!experiments/flowm_bench/k3d/results/pilot_reference_last_flat_*/
+!experiments/flowm_bench/k3d/results/pilot_reference_gray_*/
+!experiments/flowm_bench/k3d/results/pilot_reference_*/*

@@ -90,20 +90,20 @@ def block_region_mse(pred, target, mask):
     return torch.where(count > 0, error / count.clamp_min(1), error.new_tensor(float("nan")))
 
 
-def block_region_splits(pred, target, metadata, actions, *, return_stats=False, per_clip=False):
-    """All-block, speed-bin and incoming turn-step errors, over supplied frames.
+def block_regions(metadata, actions, image_size):
+    """Reusable all-block, speed-bin and turn masks, independent of prediction.
 
     Intervals are [lo,hi), with 1.0 included in the last bin. Overlapping blocks
     count once within each split. Pass only predicted frames, excluding context.
     Prefer generator block_speed (object speed); raw block_vel_agent includes ego.
     """
     masks = project_block_masks(metadata["block_pos_agent"], metadata["block_valid"],
-                                pred.shape[-2:], per_block=True).to(pred.device)
-    valid = metadata["block_valid"].to(pred.device)
+                                image_size, per_block=True)
+    valid = metadata["block_valid"].to(masks.device)
     speeds = metadata.get("block_speed")
     if speeds is None:
         speeds = metadata["block_vel_agent"].norm(dim=-1)
-    speeds = speeds.to(pred.device)
+    speeds = speeds.to(masks.device)
     union = masks.any(-3)
     regions = [union]
     for lo, hi in SPEED_BINS:
@@ -111,8 +111,15 @@ def block_region_splits(pred, target, metadata, actions, *, return_stats=False, 
         regions.append((masks & selected[..., None, None]).any(-3))
     if actions.ndim == 3 and actions.shape[-1] == 1:
         actions = actions.squeeze(-1)
-    turn = ((actions == 0) | (actions == 1)).to(pred.device)
+    turn = ((actions == 0) | (actions == 1)).to(masks.device)
     regions.extend((union & turn[..., None, None], union & ~turn[..., None, None]))
+    return regions
+
+
+def block_region_splits(pred, target, metadata, actions, *, return_stats=False, per_clip=False, regions=None):
+    """Regional errors over supplied frames; optionally reuse precomputed masks."""
+    if regions is None:
+        regions = block_regions(metadata, actions, pred.shape[-2:])
     stats = {name: block_region_stats(pred, target, region, per_clip=per_clip) for name, region in zip(METRIC_NAMES, regions)}
     if return_stats:
         return stats

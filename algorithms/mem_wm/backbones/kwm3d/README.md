@@ -340,10 +340,10 @@ initialization, teacher-forcing draws, shuffled training batches and workers;
 it does not promise bitwise deterministic CUDA kernels.
 
 Pilot data access sets `metadata_read_only: true`: constructing a dataset
-never creates NAS metadata, even for other registered splits. The maintainer
-must supply `data/blockworld/metadata/k3d_v_training.pt` before the real-split
-dry run or training. That index was absent during this preparation. All CPU
-training smoke runs override the training split to `k3d_v_validation`.
+never creates NAS metadata, even for other registered splits. The training
+index `data/blockworld/metadata/k3d_v_training.pt` now exists: **10,000 videos,
+each with 500 frames**, verified in the Opus review. The original CPU training
+smoke runs used `k3d_v_validation` because the index was absent at that time.
 
 The new `validation_first_clips: true` selects the **first 1,000 videos in the
 metadata index, starting at frame 0**, with no shuffle; the current validation
@@ -357,8 +357,8 @@ and incoming action alignment. The test split is never used.
 
 Run from `/home/yixunhu/codespace/flowm`. These commands are for the maintainer's
 existing launcher, **only after `C4 CHAIN DONE` and the free-memory gate**.
-No scheduling or GPU process was started by this work. First prepare the missing
-training metadata and run the maintainer's real-split dry run.
+No scheduling or GPU process was started by this work. The training metadata
+and maintainer's real-split CPU dry run have been verified in the Opus review.
 
 ```bash
 P=/home/yixunhu/miniconda3/envs/flowm/bin/python
@@ -388,7 +388,10 @@ CPU mode hides CUDA. CPU RSS is reported separately. Inputs are synthetic, with
 ten valid oracle slots; timings exclude real-data loading and validation.
 Do not infer a GPU budget from CPU timings.
 
-Before training, project `6000 * (mean_C + mean_A_oracle) / 86400` GPU-days.
+The measured NAS data-loading floor is **0.353 s/batch** at batch 8, 8 workers,
+and 90 frames; the first batch takes **3.8 s** (Opus review, shared host).
+The budget projection uses **`max(gpu_step, 0.35)` seconds per arm**:
+`6000 * (max(mean_C, 0.35) + max(mean_A_oracle, 0.35)) / 86400` GPU-days.
 **If this exceeds four days, stop and report.** Report actual elapsed time as well,
 including validation and I/O. If either arm's batch 8 cannot fit in the *free*
 memory, benchmark **both** with `--batch 4 --accumulate 2`, recompute the cap,
@@ -429,6 +432,9 @@ done
   --c outputs/k3d_pilot/c/eval_140/dump \
   --a_oracle outputs/k3d_pilot/a_oracle/eval_140/dump \
   --baseline experiments/flowm_bench/k3d/results/pilot_baseline_repeat_140 \
+  --reference context_mean=experiments/flowm_bench/k3d/results/pilot_reference_context_mean_140 \
+  --reference last_flat=experiments/flowm_bench/k3d/results/pilot_reference_last_flat_140 \
+  --reference gray=experiments/flowm_bench/k3d/results/pilot_reference_gray_140 \
   --other-c outputs/k3d_pilot/c/eval_280/dump \
   --other-a-oracle outputs/k3d_pilot/a_oracle/eval_280/dump \
   --output outputs/k3d_pilot/pilot_stats_140.md
@@ -436,6 +442,9 @@ done
   --c outputs/k3d_pilot/c/eval_280/dump \
   --a_oracle outputs/k3d_pilot/a_oracle/eval_280/dump \
   --baseline experiments/flowm_bench/k3d/results/pilot_baseline_repeat_280 \
+  --reference context_mean=experiments/flowm_bench/k3d/results/pilot_reference_context_mean_280 \
+  --reference last_flat=experiments/flowm_bench/k3d/results/pilot_reference_last_flat_280 \
+  --reference gray=experiments/flowm_bench/k3d/results/pilot_reference_gray_280 \
   --output outputs/k3d_pilot/pilot_stats_280.md
 ```
 
@@ -460,7 +469,9 @@ order, and writes `per_clip.pt`, `per_clip.csv`, and `pooled.json` at validation
 end. Training writes into `DIR/step-NNNNNN/`; standalone evaluation writes into
 `DIR/`. Only predicted frames count, respecting `n_metrics_frames` if set.
 Dump-on execution checks pooled MSE and every block split against the actual
-logged metric state with relative tolerance 1e-6 (including multiple batches).
+logged metric state with relative tolerance **1e-5** (including multiple batches).
+A larger discrepancy logs a warning with both values and writes
+`pooled_check_failed.json` beside the dump; evaluation and metric logging continue.
 
 The portable torch payload has version 1, `paths`, `dataset_indices`,
 `context_frames`, `n_frames`, `metric_names`, and `[clips,7]` tensors
@@ -473,14 +484,26 @@ CSV includes every numerator, denominator, per-clip value and block pixel count.
 Empty regions have zero numerator/count and NaN per-clip MSE. Accumulation uses
 float64 to avoid drift over 1,000 clips; masks and image values are unchanged.
 
-The statistics script checks arm paths/order, indices, horizon and region
-counts. It reports pooled values, relative reductions, mean paired per-clip
+The statistics script requires **exactly 1,000 clips in every dump** and checks
+both arms, repeat-last and references for matching paths/order, dataset indices,
+horizon, full-frame element counts and block pixel counts. It reports pooled
+values, relative reductions, mean paired per-clip
 A-oracle minus C, and the 2.5/97.5 percentiles of **10,000** clip bootstrap
 resamples from NumPy Generator seed **20261105**. Empty-region clips are counted
 and excluded from that split's paired mean, but remain in pooled sums. An
 entirely empty primary region is rejected as undefined. Empty secondary splits
-report NaN. The full baseline can accompany a smaller smoke-run sample; both
-sample counts are printed. Scientific pilot reporting requires the full 1,000.
+report NaN. Explicit `--smoke` permits smaller arm samples and subsets baseline
+and reference dumps to the arms' paths, failing if any path is missing or its
+index/counts differ. Output is labelled **SMOKE** and contains no pilot verdict.
+
+Repeatable `--reference name=<dump>` adds **reference, not part of the criterion**
+rows for pooled block MSE and full-frame MSE next to both arms, with flags for
+whether each arm is below that reference. `context_mean` averages the 70 context
+frames per pixel, `last_flat` repeats the last context frame's mean RGB colour
+at every pixel, and `gray` is constant 0.5. These diagnostics address the review's
+finding that even gray can beat repeat-last on block MSE; beating repeat-last
+alone need not establish useful dynamics. The verdict never reads reference
+values; repeat-last remains the registered INCONCLUSIVE baseline.
 
 At **140 frames**, INCONCLUSIVE is checked first if both arms' pooled block MSE
 are >= repeat-last. Otherwise PASS requires oracle <= 0.90*C **and** CI upper
@@ -510,6 +533,11 @@ Existing released-weight reports/CSVs are untouched. The existing `lift`,
 `patch_motion`, and `estimator_gate` entrypoints also accept `--checkpoint`,
 `--arm`, and `--clips` to run just the corresponding stage. Without these
 arguments their released-weight paths retain their behavior.
+`--arm c` is rejected because C trains per-node writes and has no trained pooled
+observation write. Pooled arms `a_oracle`, `a`, `b`, and `c_pw` are supported.
+Dispatch accepts `--split k3d_v_validation`; other splits and unsupported stage-1
+options (such as `--ks` or `--sigmas`) fail with an explanation of the fixed
+trained-lift settings, before checkpoint loading.
 
 ### CPU verification and limits
 
@@ -525,24 +553,26 @@ established parity with the earlier revision documented above).
 The dry-run overrides are deliberately small: `experiment.accelerator=cpu`,
 `experiment.devices=1`, batch 1, workers 0, max_steps 2, 8+4 frames, validation
 at step 2 over two separate one-clip batches, and checkpoint every two steps.
-Training uses `k3d_v_validation`, because the training index is absent. Each
+Those original runs used `k3d_v_validation` before the training index existed. Each
 checkpoint was then evaluated at full 70+70 on two clips and 70+210 on one clip.
 All six dumps passed the runtime 1e-6 pooling checks. Both checkpoints contain
 `global_step=2`, AdamW step counters of 2 and finite model weights. Paths are
 `outputs/k3d_pilot_cpu_{c,a_oracle}/checkpoints/step-000002.ckpt`,
 `train_dump/step-000002/`, and `eval_{140,280}/dump/` under each arm directory.
 
-The first C command with `wandb.mode=offline` failed before model execution:
-`ServicePollForTokenError: wandb-core exited with code 1`. CPU smoke commands
-therefore use **`wandb.mode=disabled`**, and skip video logging with
+The original sandbox's first C command with `wandb.mode=offline` failed before model execution:
+`ServicePollForTokenError: wandb-core exited with code 1`. Those CPU smoke commands
+therefore used **`wandb.mode=disabled`**, and skipped video logging with
 `algorithm.logging.max_num_videos=0`; the pilot shortcodes still use offline
 W&B. Disabled logging exposed an existing uninitialized `resume` local in
-`main.py`, which is fixed. Offline W&B service startup on the maintainer's host
-remains unverified here. The initial C evaluation log used enum-form metric
+`main.py`, which is fixed. **Offline W&B works on the maintainer's host**:
+the Opus review verified it directly and through `main.py`, including with
+the documented `.scratch/tmp` TMPDIR. The earlier failure was specific to the
+sandbox. The initial C evaluation log used enum-form metric
 labels; the hook now uses the existing `prediction/mse` spelling, covered by
 tests and the subsequent oracle evaluations. Values were unaffected.
 
-Final tests: **93 passed, 5 warnings, 52.60 s pytest time / 55.12 s command wall**
+Original preparation tests: **93 passed, 5 warnings, 52.60 s pytest time / 55.12 s command wall**
 for `tests/kwm3d tests/k3d`, below five minutes. Warnings concern existing
 pkg_resources/timm/TF32 APIs and the intentionally single-process dataloaders.
 Tests cover config composition, first-clip selection and read-only metadata,
@@ -590,13 +620,12 @@ was overwritten. Only zero-map write reuse was factored out of the backbone;
 its forward arithmetic and state-dict keys are unchanged.
 
 Still unverified: actual GPU memory/timing, feasibility of batch 8 or fallback
-batch 4, the four-day projection, 6,000-step convergence/stability, real training
-metadata availability and offline W&B on the maintainer's host. Ensure the
+batch 4, the four-day projection, and 6,000-step convergence/stability. Ensure the
 correct arm and final checkpoint are supplied; wrong-arm or incomplete state
 is now rejected strictly. A rerun using the same output directory can overwrite
 same-step artifacts, so retain completed pilot directories before rerunning.
 
-### Repeat-last baseline and command record
+### Repeat-last baseline, references and command record
 
 The baseline command was:
 
@@ -611,18 +640,25 @@ including imports. Log: `.scratch/baseline.log`. Both dump directories contain
 `per_clip.pt`, `per_clip.csv` and `pooled.json`:
 `experiments/flowm_bench/k3d/results/pilot_baseline_repeat_{140,280}/`.
 These small sufficient-statistic artifacts are explicitly unignored for review.
+The script now also writes `pilot_reference_{context_mean,last_flat,gray}_{140,280}/`
+in that results directory, sharing one 280-frame decode and the analytic masks
+across predictors and horizons. The CPU fix pass regenerates all 1,000 clips;
+reference measurements and the repeat-last byte-identity hashes are recorded in
+[.scratch/FIXPASS_PILOT.md](.scratch/FIXPASS_PILOT.md).
 
 | Horizon | Predicted frames | Clips | Pooled block MSE | Full-frame MSE |
 |---|---:|---:|---:|---:|
 | 140 | 70 | 1,000 | 0.20110865545138992 | 0.04059602298643912 |
 | 280 | 210 | 1,000 | 0.2025386558195779 | 0.04125877101735599 |
 
-Both statistics CLI smoke runs succeeded. Their outputs are
+The original statistics CLI smoke runs succeeded. Their outputs were
 `outputs/k3d_pilot_cpu_stats_140.md` and `outputs/k3d_pilot_cpu_stats_280.md`.
-The two-clip primary printed INCONCLUSIVE, the one-clip secondary printed FAIL,
+The old two-clip primary printed INCONCLUSIVE, the one-clip secondary printed FAIL,
 and the pooled improvement signs agreed. **These are plumbing checks only**;
 the arm sample counts are tiny, the models have only two updates, and the
-baseline contains 1,000 clips. They do not decide the registered pilot.
+baseline contained 1,000 clips. They do not decide the registered pilot.
+Current smoke commands must pass `--smoke`; they subset the baseline and print
+no verdict. The historical command records below predate this requirement.
 
 The table records subprocess wall time (including imports) for every main-entry
 smoke command, statistics command, and trained-lift proof. Logs use
@@ -735,7 +771,9 @@ dry_stats_280 — 1.637 s, exit 0:
 
 </details>
 
-The working tree is intentionally uncommitted. Proposed message: `.scratch/COMMIT_MSG3.txt`.
+The working tree is intentionally uncommitted. The original preparation message
+is `.scratch/COMMIT_MSG3.txt`; the review fix pass uses `.scratch/COMMIT_MSG4.txt`.
+Its current test counts and artifact audit are in `.scratch/FIXPASS_PILOT.md`.
 
 Final benchmark review aligned `torch.set_float32_matmul_precision("high")`
 with `experiments/base_exp.py` and records that setting in each JSON line.

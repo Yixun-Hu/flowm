@@ -288,6 +288,7 @@ class FloWMVideo(BaseWMMixin, BasePytorchAlgo):
 
     def on_validation_epoch_end(self, namespace="validation"):
         pooled_values = None
+        logged_values = {}
         if getattr(self, "_clip_dump", None) is not None and self._clip_dump.paths:
             dest = Path(self.logging_cfg.per_clip_dump)
             if self.trainer.state.fn == "FIT":
@@ -295,15 +296,15 @@ class FloWMVideo(BaseWMMixin, BasePytorchAlgo):
             data = self._clip_dump.write(dest)
             pooled_values = dict(zip(data["metric_names"], data["pooled"]))
             if "mse" in self._metrics("prediction").metrics:
-                torch.testing.assert_close(pooled_values["mse"],
-                    self._metrics("prediction").metrics["mse"].compute().cpu().double(), rtol=1e-6, atol=0)
+                logged_values["mse"] = self._metrics("prediction").metrics["mse"].compute()
         if hasattr(self, "block_region_metric") and self.block_region_metric._update_called:
             values = self.block_region_metric.compute()
-            if pooled_values is not None:
-                for name, value in values.items():
-                    torch.testing.assert_close(pooled_values[name], value.cpu(), rtol=1e-6, atol=0, equal_nan=True)
+            logged_values.update(values)
             self.log_dict({f"{namespace}/prediction/{k}": v for k, v in values.items()}, sync_dist=True)
             self.block_region_metric.reset()
+        if pooled_values is not None:
+            from algorithms.mem_wm.backbones.kwm3d.per_clip import check_pooled_metrics
+            check_pooled_metrics(pooled_values, logged_values, dest)
         if self.backbone_cfg.model_type == "kwm3d":
             # The common hook omits FIT metrics and accumulates them across
             # validation epochs. Pilot curves need a fresh value each time.

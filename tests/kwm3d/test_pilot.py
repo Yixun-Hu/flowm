@@ -93,7 +93,8 @@ def samples():
     return pred, gt, meta, actions
 
 
-def test_dump_matches_logged_metrics_across_batches(tmp_path, monkeypatch):
+@pytest.mark.parametrize('reduction_drift', [0., 5e-6, 2e-5])
+def test_dump_matches_logged_metrics_across_batches(tmp_path, monkeypatch, caplog, reduction_drift):
     cfg = config("exp/blockworld/kwm3d/train/pilot_c")
     cfg.algorithm.tasks.prediction.context_frames = 2
     cfg.algorithm.logging.n_metrics_frames = 4
@@ -114,6 +115,9 @@ def test_dump_matches_logged_metrics_across_batches(tmp_path, monkeypatch):
         monkeypatch.setattr(algo, "_sample_all_videos", lambda *a, p=pp, g=gg, m=mm: ({"prediction": p, "gt": g}, m))
         batch = (gg[:, :2], actions[ids, :2], actions[ids, 2:], gg[:, 2:], gg, mm)
         algo.validation_step(batch, i)
+    metric = algo.metrics_prediction.metrics['mse']
+    compute = metric.compute
+    monkeypatch.setattr(metric, 'compute', lambda: compute() * (1 + reduction_drift))
     algo.on_validation_epoch_end()
     dump = torch.load(tmp_path / "per_clip.pt", weights_only=True)
     assert dump["paths"] == meta["path"] and dump["n_frames"] == 4
@@ -122,7 +126,19 @@ def test_dump_matches_logged_metrics_across_batches(tmp_path, monkeypatch):
     assert (tmp_path / "per_clip.csv").exists()
     for name, value in zip(dump["metric_names"], pooled(dump)):
         key = "prediction/mse" if name == "mse" else "validation/prediction/"+name
+        if name == 'mse':
+            value *= 1 + reduction_drift
         torch.testing.assert_close(value, logged[key].double(), rtol=1e-6, atol=0)
+    marker = tmp_path / 'pooled_check_failed.json'
+    assert marker.exists() == (reduction_drift > 1e-5)
+    if marker.exists():
+        report = json.loads(marker.read_text())
+        assert report['rtol'] == 1e-5
+        assert report['mismatches']['mse']['pooled'] == float(dump['pooled'][0])
+        assert report['mismatches']['mse']['logged'] == float(logged['prediction/mse'])
+        assert 'POOLED METRIC CHECK FAILED' in caplog.text and 'pooled=' in caplog.text and 'logged=' in caplog.text
+    else:
+        assert 'POOLED METRIC CHECK FAILED' not in caplog.text
     assert not algo.block_region_metric._update_called
     assert not algo.metrics_prediction.metrics["mse"]._update_called
     cfg.algorithm.logging.per_clip_dump = None

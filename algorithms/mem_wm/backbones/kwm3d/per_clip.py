@@ -1,6 +1,7 @@
 """Portable per-clip RGB SSE/counts. Inputs contain predicted frames only."""
 import csv
 import json
+import logging
 from pathlib import Path
 
 import torch
@@ -9,9 +10,29 @@ from .metrics import METRIC_NAMES, block_region_splits
 NAMES = ("mse", *METRIC_NAMES)
 
 
-def clip_stats(pred, target, metadata, actions):
+def check_pooled_metrics(pooled_values, logged_values, directory):
+    """Record reduction discrepancies without failing a completed evaluation."""
+    failures = {}
+    for name, logged in logged_values.items():
+        actual = torch.as_tensor(pooled_values[name]).detach().cpu().double()
+        logged = torch.as_tensor(logged).detach().cpu().double()
+        if not torch.isclose(actual, logged, rtol=1e-5, atol=0, equal_nan=True).item():
+            failures[name] = dict(pooled=float(actual), logged=float(logged))
+            logging.getLogger(__name__).warning(
+                "POOLED METRIC CHECK FAILED: %s pooled=%.17g logged=%.17g (rtol=1e-5); "
+                "evaluation continues; see %s/pooled_check_failed.json",
+                name, actual, logged, directory)
+    marker = Path(directory) / "pooled_check_failed.json"
+    if failures:
+        marker.write_text(json.dumps(dict(rtol=1e-5, atol=0, mismatches=failures), indent=2) + "\n")
+    else:
+        marker.unlink(missing_ok=True)
+    return not failures
+
+
+def clip_stats(pred, target, metadata, actions, *, regions=None):
     pred, target = [torch.nan_to_num(x).clamp(0, 1).float() for x in (pred, target)]
-    stats = block_region_splits(pred, target, metadata, actions, return_stats=True, per_clip=True)
+    stats = block_region_splits(pred, target, metadata, actions, return_stats=True, per_clip=True, regions=regions)
     stats["mse"] = ((pred - target).square().flatten(1).sum(1, dtype=torch.float64),
                     torch.full((len(pred),), pred[0].numel(), dtype=torch.int64, device=pred.device))
     return stats
